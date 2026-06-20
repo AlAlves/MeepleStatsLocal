@@ -7,12 +7,15 @@ from jwt.exceptions import InvalidTokenError
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import uuid
-from bson import ObjectId
+# MONGO_DEL from bson import ObjectId
 from flask import current_app
 import requests
 import json
 
-from .services.db import players_collection, games_collection, matches_collection, wishlists_collection, rulebooks_collection
+#MONGO_DEL from .services.db import players_collection, games_collection, matches_collection, wishlists_collection, rulebooks_collection
+from app import db
+from .models import Player, Game, Match, Wishlist, Achievement, Rulebook
+from .services.db import find_one, find_all, insert_one, update_one, delete_one
 from .services.bgg_import import import_games_from_bgg
 from .services.achievements_management import check_update_achievements
 from .services.achievements_setup import create_achievements
@@ -51,7 +54,7 @@ def _bgg_get(url, params = None):
     while resp.status_code == 202:
         time.sleep(2)
         resp = requests.get(url, headers=headers, params=params, timeout=15)
-    return resp 
+    return resp
 
 @bgg_bp.route('/bgg/search', methods=['GET'])
 def bgg_search():
@@ -99,27 +102,30 @@ def register():
         return jsonify({'error': 'Missing username or password'}), 400
 
     # Check if the username already exists
-    user = players_collection.find_one({'username': username})
+    # MONGO_DEL user = players_collection.find_one({'username': username})
+    user = find_one("players", {'username': username})
+
     if user:
         return jsonify({'error': 'Username already exists'}), 400
     
     # Hash password and save the user
-    user_data = {
-        'username': username,
-        'password': generate_password_hash(password),
-        'email': email,
-        'image': "",
-        'created_at': datetime.now(),
-        'achievements': [],
-        'matches': [],
-        'wins': 0,
-        'winstreak': 0,
-        'longest_winstreak': 0,
-        'losses': 0,
-        'total_matches': 0,
-        'num_competitive_win': 0,
-    }
-    players_collection.insert_one(user_data)
+    user_data = Player(
+        username=username,
+        password=generate_password_hash(password),
+        email=email,
+        image="",
+        created_at=datetime.now(),
+        achievements=[],
+        matches=[],
+        wins=0,
+        winstreak=0,
+        longest_winstreak=0,
+        losses=0,
+        total_matches=0,
+        num_competitive_win=0 )
+
+    # MONGO_DEL players_collection.insert_one(user_data)
+    insert_one("players", user_data)
 
     # Generate the JWT token and return it
     access_token = create_access_token(identity=username)
@@ -145,7 +151,7 @@ def login():
         return jsonify({'error': 'Missing username or password'}), 400
 
     # Check if the user exists
-    user = players_collection.find_one({'username': username})
+    user = find_one("players", {'username': username})
     if not user or not check_password_hash(user['password'], password):
         return jsonify({'error': 'Invalid username or password'}), 400
 
@@ -176,8 +182,8 @@ data_bp = Blueprint('games', __name__)
 @jwt_required()
 def get_games():
     try:
-        games = games_collection.find()
-        
+        games = find_all("games", {})
+
         games_data = []
 
         for game in games:
@@ -199,8 +205,8 @@ def update_games():
 
     if game_id:
         # Update the game in the database
-        res = games_collection.update_one({'bgg_id': game_id}, {'$set': {'isGifted': isGifted, 'price': float(game_price) if game_price else None, 'location': location}})
-        if res.modified_count:
+        res = update_one("games", {'bgg_id': game_id}, {'isGifted': isGifted, 'price': float(game_price) if game_price else None, 'location': location})
+        if res:
             return jsonify({'message': 'Game updated successfully'}), 200
         else:
             return jsonify({'error': 'No modification applied'}), 400
@@ -212,7 +218,7 @@ def update_games():
 def get_players():
 
     try:
-        players = players_collection.find()
+        players = find_all("players", {})
         
         players_data = []
 
@@ -277,7 +283,7 @@ def log_match():
 
     # Compute winner, worst_score_player, is_cooperative, total_score
 
-    game = games_collection.find_one({'bgg_id': game_id})
+    game = find_one("games", {'bgg_id': game_id})
     if not game:
         return jsonify({'error': 'Game not found'}), 404
     
@@ -331,14 +337,14 @@ def log_match():
             'filename' : image_file_name
         }
 
-    result = matches_collection.insert_one(match_data)
+    result = insert_one("matches", match_data)
     match_id = result.inserted_id 
 
     # Update players' stats
 
 
     for player in players:
-        player_data = players_collection.find_one({'_id': ObjectId(player['id'])})
+        player_data = find_one("players", {'_id': ObjectId(player['id'])})
         player_data['total_matches'] += 1
         if game['is_cooperative'] and isWin:
             player_data['wins'] += 1
@@ -379,7 +385,7 @@ def log_match():
             }
 
         # update player's Collection
-        players_collection.update_one({'_id': ObjectId(player['id'])}, {'$set': player_data})
+        update_one("players", {'_id': ObjectId(player['id'])}, {'$set': player_data})
 
     # Update game match history
     game['matches'].append({
@@ -397,7 +403,7 @@ def log_match():
     game['average_score'] = total_score / len(game['matches'])
 
     # Update game's Collection
-    games_collection.update_one({'bgg_id': game_id}, {'$set': game})
+    update_one("games", {'bgg_id': game_id}, {'$set': game})
 
     # Check and update achievements
     player_ids = [player['id'] for player in players]
@@ -409,7 +415,7 @@ def log_match():
 @jwt_required()
 def get_wishlist():
     try:
-        wishlists = wishlists_collection.find()
+        wishlists = find_all("wishlists", {})
         
         wishlists_data = []
 
@@ -432,14 +438,14 @@ def add_wishlist():
         return jsonify({'error': 'Missing username or game_id'}), 400
 
     # Check if the game is already in the wishlist
-    game = wishlists_collection.find_one({'game_id': game_id})
+    game = find_one("wishlists", {'game_id': game_id})
     if game:
         return jsonify({'error': 'Game already in the wishlist'}), 400
     
     username = get_jwt_identity() #FIXME: uncomment this line
     #username = "bb"
 
-    user = players_collection.find_one({'username': username})
+    user = find_one("players", {'username': username})
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
@@ -470,7 +476,7 @@ def add_wishlist():
         'notes': notes,
         'added_at': datetime.now(),
     }
-    wishlists_collection.insert_one(game_data)
+    insert_one("wishlists", game_data)
 
     return jsonify({'message': 'Game added to the wishlist'}), 201
 
@@ -485,12 +491,12 @@ def remove_wishlist():
         return jsonify({'error': 'Missing game_id'}), 400
     
     # Check if the game is in the wishlist
-    game = wishlists_collection.find_one({'game_id': game_id})
+    game = find_one("wishlists", {'game_id': game_id})
     if not game:
         return jsonify({'error': 'Game not found in the wishlist'}), 404
     
     # Remove the game from the wishlist
-    wishlists_collection.delete_one({'game_id': game_id})
+    delete_one("wishlists", {'game_id': game_id})
 
     return jsonify({'message': 'Game removed from the wishlist'}), 200
 
@@ -507,8 +513,8 @@ def uploaded_file(filename):
 def matchHistory():
     # Get all the matches from the database
     try:
-        matches = matches_collection.find()
-        
+        matches = find_all("matches", {})
+
         matches_data = []
 
         for match in matches:
@@ -544,7 +550,7 @@ def get_achievements():
         player_name = get_jwt_identity()
 
     # Find the player in the database
-    player = players_collection.find_one({'username': player_name})
+    player = find_one("players", {'username': player_name})
     if not player:
         return jsonify({'error': 'Player not found'}), 404
     # Get the achievements from the player
@@ -569,7 +575,7 @@ def get_achievements():
 def getGamesWithRules():
 
     # Find games in the database
-    games = rulebooks_collection.find()
+    games = find_all("rulebooks", {})
 
     game_ids = []
     for game in games:
@@ -617,8 +623,8 @@ def addGame():
                 'average_score': 0
             }
 
-    if games_collection.find_one({'bgg_id': game_id}) is None:
-        games_collection.insert_one(game_data)
+    if find_one("games", {'bgg_id': game_id}) is None:
+        insert_one("games", game_data)
         return jsonify({'message': 'Game added successfully'}), 201
     return jsonify({'error': 'Game already exists'}), 400
 
@@ -689,7 +695,9 @@ def totHours():
             }
         ]
 
+        # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
         result = list(matches_collection.aggregate(pipeline))
+        result = find_all("matches", {"date": {"$gte": start_date, "$lte": end_date}})  # Use the find_all function to execute the aggregation pipeline
 
 
         if result:
@@ -756,7 +764,8 @@ def totMatches():
             ]
 
             #result = list(matches_collection.aggregate(pipeline))
-            
+            # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
+
             total_matches = len(list(matches_collection.aggregate(pipeline)))
     
             
@@ -799,7 +808,7 @@ def playerWins():
         except ValueError:
             return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
 
-    player = players_collection.find_one({'username': player_name})
+    player = find_one("players", {'username': player_name})
     if start_date_str is None and end_date_str is None:
         # Read from player's collection
         return jsonify({
@@ -864,6 +873,7 @@ def playerWins():
             }
         ]
 
+        # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
         result = list(players_collection.aggregate(pipeline))
 
         if result:
@@ -906,7 +916,7 @@ def playerWinRate():
         except ValueError:
             return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
 
-    player = players_collection.find_one({'username': player_name})
+    player = find_one("players", {'username': player_name})
 
     if start_date_str is None and end_date_str is None:
         # Read from player's collection, prevent division by zero
@@ -1000,6 +1010,7 @@ def playerWinRate():
             }
         ]
 
+        # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
         result = list(players_collection.aggregate(pipeline))
 
         if result:
@@ -1029,7 +1040,7 @@ def playerLongWinstreak():
     if not player_name:
         player_name = get_jwt_identity()
 
-    player = players_collection.find_one({'username': player_name})
+    player = find_one("players", {'username': player_name})
 
     return jsonify({
         "type": "number",
@@ -1143,7 +1154,7 @@ def playerHighestWinRate():
         }
     ]
 
-
+    # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
     result = list(players_collection.aggregate(pipeline))
 
     if result:
@@ -1206,12 +1217,13 @@ def playerGameWins():
         }
     ]
 
+    # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
     result = list(players_collection.aggregate(pipeline))
 
     if result:
         # Get the games' names from the game collection
-        best_game = games_collection.find_one({"bgg_id": result[0]["_id"]})
-        worst_game = games_collection.find_one({"bgg_id": result[-1]["_id"]})
+        best_game = find_one("games", {"bgg_id": result[0]["_id"]})
+        worst_game = find_one("games", {"bgg_id": result[-1]["_id"]})
         
         best_game_name = best_game["name"] if best_game else "Unknown"
         worst_game_name = worst_game["name"] if worst_game else "Unknown"
@@ -1341,12 +1353,12 @@ def gameCoopWinRate():
                 }
             }
         ]
-
+    # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
     result = list(games_collection.aggregate(pipeline))
 
     if result:
         for game in result:
-            game_data = games_collection.find_one({"bgg_id": game["game_id"]})
+            game_data = find_one("games", {"bgg_id": game["game_id"]})
             game["name"] = game_data["name"] if game_data else "Unknown"
             # Remove the game_id from the result
             del game["game_id"]
@@ -1393,8 +1405,9 @@ def gameNumMatch():
         if result:
 
             # Get the games' names from the game collection
-            most_played = games_collection.find_one({"bgg_id": result[0]["_id"]})
-            least_played = games_collection.find_one({"bgg_id": result[-1]["_id"]})
+            # TODO check most played and not bgg id ?
+            most_played = find_one("games", {"bgg_id": result[0]["_id"]})
+            least_played = find_one("games", {"bgg_id": result[-1]["_id"]})
             
             most_played_name = most_played["name"] if most_played else "Unknown"
             least_played_name = least_played["name"] if least_played else "Unknown"
@@ -1477,13 +1490,14 @@ def gameAvgDuration():
                 }
             }
         ]
-    
+
+    # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
     result = list(games_collection.aggregate(pipeline))
 
     if result:
         # Add game names to results
         for game in result:
-            game_data = games_collection.find_one({"bgg_id": game["_id"]})
+            game_data = find_one("games", {"bgg_id": game["_id"]})
             game["name"] = game_data["name"] if game_data else "Unknown"
 
         if game_name:
@@ -1562,6 +1576,7 @@ def gameBestValue():
         }
     ]
 
+    # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
     result = list(games_collection.aggregate(pipeline))
 
     if result:
@@ -1592,7 +1607,7 @@ def gameHighestScore():
             "description": "Missing game name"
         }), 200
     
-    game = games_collection.find_one({'name': game_name})
+    game = find_one("games", {'name': game_name})
 
     if not game:
         return jsonify({
@@ -1629,7 +1644,7 @@ def gameAvgScore():
             "description": "Missing game name"
         }), 200
     
-    game = games_collection.find_one({'name': game_name})
+    game = find_one("games", {'name': game_name})
 
     if not game:
         return jsonify({
@@ -1676,7 +1691,7 @@ rulebooks_bp = Blueprint('rulebooks', __name__)
 def get_rulebooks():
     try:
         # Get all rulebooks from database
-        rulebooks = rulebooks_collection.find()
+        rulebooks = find_all("rulebooks", {})
         
         rulebooks_data = []
         for rulebook in rulebooks:
@@ -1749,7 +1764,7 @@ def upload_rulebook():
             'original_uploader': current_user
         }
         
-        rulebooks_collection.insert_one(rulebook_data)
+        insert_one("rulebooks", rulebook_data)
         
         return jsonify({'message': 'Rulebook uploaded successfully', 'file_url': file_url}), 200
     except Exception as e:
@@ -1763,7 +1778,7 @@ def delete_rulebook(rulebook_id):
         current_user = get_jwt_identity()
         
         # Find rulebook
-        rulebook = rulebooks_collection.find_one({'_id': ObjectId(rulebook_id)})
+        rulebook = find_one("rulebooks", {'_id': rulebook_id})
         
         if not rulebook:
             return jsonify({'error': 'Rulebook not found'}), 404
@@ -1773,7 +1788,7 @@ def delete_rulebook(rulebook_id):
             return jsonify({'error': 'Unauthorized to delete this rulebook'}), 403
             
         # Delete from database
-        rulebooks_collection.delete_one({'_id': ObjectId(rulebook_id)})
+        delete_one("rulebooks", {'_id': rulebook_id})
         
         clear_namespace(index, create_safe_namespace(rulebook['filename']))
 
@@ -1798,7 +1813,7 @@ def delete_rulebook(rulebook_id):
 def get_rulebook(rulebook_id):
     try:
         # Find rulebook
-        rulebook = rulebooks_collection.find_one({'_id': ObjectId(rulebook_id)})
+        rulebook = find_one("rulebooks", {'_id': rulebook_id})
         
         if not rulebook:
             return jsonify({'error': 'Rulebook not found'}), 404
@@ -1829,7 +1844,7 @@ def rulebook_chat():
             return jsonify({'error': 'No rulebook ID provided'}), 400
         
         # Find rulebook
-        rulebook = rulebooks_collection.find_one({'_id': ObjectId(rulebook_id)})
+        rulebook = find_one("rulebooks", {'_id': rulebook_id})
         
         if not rulebook:
             return jsonify({'error': 'Rulebook not found'}), 404

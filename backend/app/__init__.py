@@ -1,11 +1,13 @@
 # app/__init__.py
 from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from datetime import timedelta
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
-from dotenv import find_dotenv
+
+db = SQLAlchemy()
 
 def create_app():
     app = Flask(__name__)
@@ -14,17 +16,20 @@ def create_app():
     if dotenv_path:
         load_dotenv(dotenv_path, override=True)
     else:
-        print("File .env non trovato")
+        print("File .env not found.")
 
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 28)))
     app.config['JWT_TOKEN_LOCATION'] = os.getenv('JWT_TOKEN_LOCATION')  # Indica che il JWT verrà letto dai cookie
     app.config['JWT_COOKIE_SECURE'] = os.getenv('JWT_COOKIE_SECURE', 'True').lower() in ['true', '1', 't']
     app.config['JWT_ACCESS_COOKIE_NAME'] = os.getenv('JWT_ACCESS_COOKIE_NAME', 'jwt_token')
-    app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, os.getenv('UPLOAD_FOLDER', 'uploads'))
     app.config['JWT_COOKIE_CSRF_PROTECT'] = os.getenv('JWT_COOKIE_CSRF_PROTECT', 'False').lower() in ['true', '1', 't']
     app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024
-    
+    app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, os.getenv('UPLOAD_FOLDER', 'uploads'))
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    db.init_app(app)
     jwt = JWTManager(app)
 
     cors_origin = os.getenv('CORS_ORIGIN')
