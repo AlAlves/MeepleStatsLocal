@@ -45,14 +45,15 @@ class LocalEmbeddingProvider(EmbeddingProvider):
 # Gemini Embedding Provider
 class GeminiEmbeddingProvider(EmbeddingProvider):
     def __init__(self, api_key):
-        try:
-            import google.generativeai as genai
-            self.genai = genai  # Store the module reference
-            self.api_key = api_key
-            genai.configure(api_key=api_key)
-            print("Initialized Gemini embedding model")
-        except ImportError:
-            raise ImportError("Please install google-generativeai package to use Gemini embeddings")
+        print("Initialized Gemini embedding model")
+        # try:
+        #     import google.generativeai as genai
+        #     self.genai = genai  # Store the module reference
+        #     self.api_key = api_key
+        #     genai.configure(api_key=api_key)
+        #     print("Initialized Gemini embedding model")
+        # except ImportError:
+        #     raise ImportError("Please install google-generativeai package to use Gemini embeddings")
     
     def embed(self, text):
         # Use the correct embedding method from the genai module

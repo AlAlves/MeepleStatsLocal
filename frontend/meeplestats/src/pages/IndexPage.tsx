@@ -1,7 +1,6 @@
 import { Container, Grid, Title, Text, Button, Group, Select, useMantineColorScheme } from "@mantine/core";
 import StatisticCard from "../components/StatisticCard"; // Adjust the path as necessary
 import { API_URL, FilterTypes, JWT_STORAGE } from "../model/Constants";
-import PlayerAchievementCard from "../components/PlayerAchievementCard";
 import { IconUser } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
 import { Player } from "../model/Interfaces";
@@ -109,8 +108,6 @@ export default function IndexPage() {
         </Group>
       </div>
 
-      {/* Achievement Card - passing the selected username */}
-      <PlayerAchievementCard username={selectedUsername} />
       {/* Global Statistics */}
       <div className="!mb-8">
         <Title order={2} className={`!mb-4 !font-semibold !text-xl ${isDarkMode ? "!text-gray-100" : "!text-gray-800"}`}>

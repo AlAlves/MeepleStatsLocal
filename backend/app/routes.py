@@ -7,20 +7,15 @@ from jwt.exceptions import InvalidTokenError
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import uuid
-# MONGO_DEL from bson import ObjectId
 from flask import current_app
 import requests
 import json
 
-#MONGO_DEL from .services.db import players_collection, games_collection, matches_collection, wishlists_collection, rulebooks_collection
 from app import db
-from .models import Player, Game, Match, Wishlist, Achievement, Rulebook
-from .services.db import find_one, find_all, insert_one, update_one, delete_one
+from .models import Player, Game, Match
+from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict
 from .services.bgg_import import import_games_from_bgg
-from .services.achievements_management import check_update_achievements
-from .services.achievements_setup import create_achievements
 
-from .services.s3 import S3Client
 from .services.rag import query_llm, query_index, display_search_results, initialize_pinecone, create_safe_namespace, index_single_pdf, clear_namespace
 
 
@@ -30,19 +25,21 @@ from .services.rag import query_llm, query_index, display_search_results, initia
 if os.getenv('ENABLE_RAG') == 'True':
     index, embedding_provider = initialize_pinecone()
 
-STORAGE_TYPE = os.getenv('STORAGE_TYPE')#'local'#'s3'
+STORAGE_TYPE = os.getenv('STORAGE_TYPE') #'local'
 BGG_API_KEY = os.getenv('BGG_API_KEY')
 
 upload_folder = None
 
-if STORAGE_TYPE in ['s3']:
-    minio_client = S3Client.get_client()
-elif STORAGE_TYPE in ['local']:
+if STORAGE_TYPE in ['local']:
     # Create the upload folder if it doesn't exist
     upload_folder = current_app.config['UPLOAD_FOLDER']
     if not os.path.exists(upload_folder):
         os.makedirs(upload_folder)
 
+
+# ---------------------
+#   BGG MANAGEMENT
+# ---------------------
 
 bgg_bp = Blueprint('bgg', __name__)
 
@@ -69,6 +66,10 @@ def bgg_thing():
     object_id = request.args.get('id', '')
     resp = _bgg_get(f'https://boardgamegeek.com/xmlapi2/thing', params={'id': object_id})
     return Response(resp.content, status=resp.status_code, content_type=resp.headers.get("Content-Type"))
+
+# ---------------------
+#   AUTH MANAGEMENT
+# ---------------------
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -109,20 +110,17 @@ def register():
         return jsonify({'error': 'Username already exists'}), 400
     
     # Hash password and save the user
-    user_data = Player(
-        username=username,
-        password=generate_password_hash(password),
-        email=email,
-        image="",
-        created_at=datetime.now(),
-        achievements=[],
-        matches=[],
-        wins=0,
-        winstreak=0,
-        longest_winstreak=0,
-        losses=0,
-        total_matches=0,
-        num_competitive_win=0 )
+    user_data = {
+        "username": username,
+        "password": generate_password_hash(password),
+        "email": email,
+        "image": "",
+        "created_at": datetime.now(),
+        "total_matches": 0,
+        "wins": 0,
+        "winstreak": 0,
+        "longest_winstreak": 0
+    }
 
     # MONGO_DEL players_collection.insert_one(user_data)
     insert_one("players", user_data)
@@ -152,7 +150,8 @@ def login():
 
     # Check if the user exists
     user = find_one("players", {'username': username})
-    if not user or not check_password_hash(user['password'], password):
+
+    if not user or not check_password_hash(user.password, password):
         return jsonify({'error': 'Invalid username or password'}), 400
 
     # Generate the JWT token and return it
@@ -161,8 +160,8 @@ def login():
     jwt_storage = os.getenv('JWT_STORAGE')
     if jwt_storage == 'cookie':
         response = jsonify({'message': 'Login successful'})
-        response.set_cookie('jwt_token', access_token, httponly=True, secure=True, max_age=timedelta(weeks=4), samesite="None", partitioned=True) # FIXME: use this in HTTPS environment
-        #response.set_cookie('jwt_token', access_token, httponly=True, secure=False, max_age=timedelta(weeks=4), samesite="Lax")
+        # HTTPS response.set_cookie('jwt_token', access_token, httponly=True, secure=True, max_age=timedelta(weeks=4), samesite="None", partitioned=True) # FIXME: use this in HTTPS environment
+        response.set_cookie('jwt_token', access_token, httponly=True, secure=False, max_age=timedelta(weeks=4) ) # , samesite="Lax")
     elif jwt_storage == 'localstorage':
         response = jsonify({'message': 'Login successful', 'jwt_token': access_token}) 
     return response, 200
@@ -175,20 +174,18 @@ def logout():
     response.set_cookie('jwt_token', '', expires=0)
     return response, 200
 
-data_bp = Blueprint('games', __name__)
+# ---------------------
+#   GAME MANAGEMENT
+# ---------------------
 
+data_bp = Blueprint('games', __name__)
 
 @data_bp.route('/games', methods=['GET'])
 @jwt_required()
 def get_games():
     try:
         games = find_all("games", {})
-
-        games_data = []
-
-        for game in games:
-            game['_id'] = str(game['_id'])
-            games_data.append(game)
+        games_data = query_results_to_dict(games)
 
         return jsonify(games_data), 200
     except Exception as e:
@@ -216,15 +213,9 @@ def update_games():
 
 @data_bp.route('/players', methods=['GET'])
 def get_players():
-
     try:
         players = find_all("players", {})
-        
-        players_data = []
-
-        for player in players:
-            player['_id'] = str(player['_id'])
-            players_data.append(player)
+        players_data = query_results_to_dict(players)
 
         return jsonify(players_data), 200
     except Exception as e:
@@ -344,7 +335,7 @@ def log_match():
 
 
     for player in players:
-        player_data = find_one("players", {'_id': ObjectId(player['id'])})
+        player_data = find_one("players", {'id': player['id']})
         player_data['total_matches'] += 1
         if game['is_cooperative'] and isWin:
             player_data['wins'] += 1
@@ -385,7 +376,7 @@ def log_match():
             }
 
         # update player's Collection
-        update_one("players", {'_id': ObjectId(player['id'])}, {'$set': player_data})
+        update_one("players", {'id': player['id']}, {'$set': player_data})
 
     # Update game match history
     game['matches'].append({
@@ -575,14 +566,10 @@ def get_achievements():
 def getGamesWithRules():
 
     # Find games in the database
-    games = find_all("rulebooks", {})
+    games = find_all("games", {'rulebook': {'$ne': None}})
+    games_data = query_results_to_dict(games)
 
-    game_ids = []
-    for game in games:
-        if game.get('game_id') not in game_ids:
-            game_ids.append(game.get('game_id'))
-
-    return jsonify(game_ids), 200
+    return jsonify(games_data), 200
 
 
 statistic_bp = Blueprint('statistic', __name__)
@@ -606,24 +593,25 @@ def addGame():
     game = root.find('item')
 
     game_data = {
-                'bgg_id': game.attrib['id'],
-                'name': game.find('name[@type=\'primary\']').attrib['value'],
-                "type": "base",
-                'min_players': game.find('minplayers').attrib['value'],
-                'max_players': game.find('maxplayers').attrib['value'],
-                'average_duration': game.find('playingtime').attrib['value'],
-                'image': {'url': game.find('image').text,
-                        'thumbnail': game.find('thumbnail').text
-                        },
-                'is_cooperative': False if game.find('link[@id=\'2023\']') is None else True,
-                'expansions': [],
-                'description': game.find('description').text,
-                'matches': [],
-                'record_score_by_player': {'player_id': "", 'score': 0},
-                'average_score': 0
-            }
+        'bgg_id': game.attrib['id'],
+        'name': game.find('name[@type=\'primary\']').attrib['value'],
+        'base_game_id': None if game.find('link[@type=\'boardgameexpansion\']') is None else game.find('link[@type=\'boardgameexpansion\']').attrib['id'],
+        'min_players': game.find('minplayers').attrib['value'],
+        'max_players': game.find('maxplayers').attrib['value'],
+        'avg_duration': game.find('playingtime').attrib['value'],
+        'image': {'url': game.find('image').text,
+                'thumbnail': game.find('thumbnail').text
+                },
+        'is_cooperative': False if game.find('link[@id=\'2023\']') is None else True,
+        'is_team_based': False if game.find('link[@id=\'2024\']') is None else True,
+        'description': game.find('description').text,
+        'belongs_to_user': None,
+        'location': None,
+        'rulebook': None,
+        'scoring_sheet': None
+    }
 
-    if find_one("games", {'bgg_id': game_id}) is None:
+    if find_one("games", {'bgg_id': game_id, 'name': game_data['name']}) is None:
         insert_one("games", game_data)
         return jsonify({'message': 'Game added successfully'}), 201
     return jsonify({'error': 'Game already exists'}), 400

@@ -29,9 +29,9 @@ const RegisterForm = () => {
       username: (value) => {
         return value.length > 0 ? null : "Invalid username";
       },
-      mail: (value) => {
-        return value.length > 0 ? null : "Invalid mail";
-      },
+      // mail: (value) => {
+      //   return value.length >= 0 ? null : "Invalid mail";
+      // },
       password: (value) => {
         return value.length > 0 ? null : "Invalid password";
       },
@@ -109,7 +109,7 @@ const RegisterForm = () => {
           }}
         />
         <TextInput
-          withAsterisk
+          // withAsterisk
           label={t("RegisterMail", { defaultValue: "Mail" })}
           key={form.key("mail")}
           {...form.getInputProps("mail")}

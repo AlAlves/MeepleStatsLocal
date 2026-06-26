@@ -1,5 +1,5 @@
 # app/__init__.py
-from flask import Flask
+from flask import Flask, Response, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
@@ -36,10 +36,30 @@ def create_app():
     if cors_origin:
         cors_origins = [origin.strip() for origin in cors_origin.split(',')]
         print(f"Setting CORS origins: {cors_origins}")
-        CORS(app, resources={r"/*": {"origins": cors_origins}}, supports_credentials=True)
     else:
+        cors_origins = '*'
         print("No CORS origin specified, allowing all origins")
-        CORS(app, supports_credentials=True)
+
+    CORS(app, resources={r"/*": {"origins": cors_origins}}, supports_credentials=True)
+
+    # CORS(app,
+    #     resources={r"/*": {"origins": cors_origin}}, 
+    #     origins=cors_origin,
+    #     allow_headers="*",
+    #     allow_credentials=True,
+    #     methods=['GET', 'POST', 'OPTIONS'], 
+    #     supports_credentials=True)
+
+    # @app.before_request
+    # def handle_preflight():
+    #     if request.method == "OPTIONS":
+    #         res = Response()
+    #         res.headers['X-Content-Type-Options'] = '*'
+    #         res.headers['Access-Control-Allow-Origin'] = cors_origin
+    #         res.headers['Access-Control-Allow-Headers'] = '*'
+    #         res.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
+    #         res.headers['Access-Control-Allow-Credentials'] = 'true'
+    #         return res
 
     # route imports
     with app.app_context():
@@ -57,5 +77,6 @@ def create_app():
         app.register_blueprint(rulebooks_blueprint)
         app.register_blueprint(scoresheets_blueprint)
         app.register_blueprint(bgg_blueprint)
+    
 
     return app

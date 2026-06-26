@@ -4,7 +4,8 @@ import time
 import xml.etree.ElementTree as ET
 from tqdm import tqdm
 
-from .db import games_collection
+from ..models import Player, Game, Match
+from .db import find_one, find_all, insert_one, update_one, delete_one
 
 def import_games_from_bgg(username):
     # Import the collection of games from the user's BGG collection - NO EXPANSIONS
@@ -88,9 +89,9 @@ def request_games(game_ids, headers, expansions):
                 'matches': [],
                 'record_score_by_player': ""
             }
-            # Insert the expansion data in the database if not already present
-            if games_collection.find_one({'bgg_id': expansion_data['bgg_id']}) is None:
-                games_collection.insert_one(expansion_data)
+            # TODO Insert the expansion data in the database if not already present
+            if find_one("games", {'bgg_id': expansion_data['bgg_id']}) is None:
+                insert_one("games", expansion_data)
             # Update the base game with the expansion data
             links = expansion.findall('link')
             base_game_id = None
@@ -100,10 +101,10 @@ def request_games(game_ids, headers, expansions):
                     break 
             # Usa base_game_id per la query in MongoDB
             if base_game_id:
-                base_game = games_collection.find_one({'bgg_id': base_game_id})
+                base_game = find_one("games", {'bgg_id': base_game_id})
             if base_game is not None:
                 base_game['expansions'].append(expansion_data['bgg_id'])
-                games_collection.update_one({'bgg_id': base_game['bgg_id']}, {"$set": base_game})
+                update_one("games", {'bgg_id': base_game['bgg_id']}, {"$set": base_game})
     else:
         for game in tqdm(root.findall('item')):
             # Create a dictionary with the game data
@@ -126,5 +127,5 @@ def request_games(game_ids, headers, expansions):
             }
             #print(game_data)
             # Insert the game data in the database if not already present
-            if games_collection.find_one({'bgg_id': game_data['bgg_id']}) is None:
-                games_collection.insert_one(game_data)
+            if find_one("games", {'bgg_id': game_data['bgg_id']}) is None:
+                insert_one("games", game_data)

@@ -73,16 +73,16 @@ export interface StaticResponse {
   description?: string;
 }
 
-export interface AchievementsResponse {
-  achievement_id: string;
-  unlocked_at: Date;
-  level?: string;
-  image: {
-    type: string;
-    filename: string;
-  }
-  description: string;
-}
+// export interface AchievementsResponse {
+//   achievement_id: string;
+//   unlocked_at: Date;
+//   level?: string;
+//   image: {
+//     type: string;
+//     filename: string;
+//   }
+//   description: string;
+// }
 
 export interface RulebookInterface {
   _id: string;
