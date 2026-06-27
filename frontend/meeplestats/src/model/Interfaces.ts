@@ -2,28 +2,42 @@ import { FilterTypes } from "./Constants";
 
 export interface Player {
   _id: string;
-  score: string;
-  name: string;
   username: string;
+  email: string;
+  image: string;
+  created_at: string;
+  total_matches: number;
+  wins: number;
+  longest_winstreak: number;
+  score: string;
   team: string;
 }
 
 export interface Game {
-  name: string;
   bgg_id: string;
+  name: string;
+  base_game_id: number | null;
+  min_players: string;
+  max_players: string;
+  avg_duration: string;
+  year_published: string;
+  image: {
+    url: string;
+  };
   is_cooperative: boolean;
-  minPlayers: string;
-  maxPlayers: string;
-  playingTime: string;
-  thumbnail: string;
-  yearPublished: string;
-  notes: string;
-  price: string;
-  isGifted: boolean;
-  username: string;
-  hasRules?: boolean;
-  location?: string;
+  is_team_based: boolean;
+  description: string;
+  belongs_to_user: number | null;
+  location: string;
+  rulebook: string | null;
+  scoring_sheet: string | null;
 }
+
+
+
+
+
+
 
 export interface StatisticCardInterface {
   endpoint: string;
@@ -51,7 +65,6 @@ export interface MatchCardInterface {
   winning_team: string;
   use_manual_winner?: boolean;
 }
-
 
 export interface WishListCardInterface {
   name: string;

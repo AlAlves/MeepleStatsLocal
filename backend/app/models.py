@@ -18,12 +18,13 @@ class Player(db.Model):
 class Game(db.Model):
     __tablename__ = 'games'
     id = db.Column(db.Integer, primary_key=True)
-    bgg_id = db.Column(db.String(128), unique=True, nullable=False)
+    bgg_id = db.Column(db.String(128), default=None)
     name = db.Column(db.String(512))
     base_game_id = db.Column(db.Integer, default=None)  # For expansions, store the base game ID, None for base games
     min_players = db.Column(db.Integer)
     max_players = db.Column(db.Integer)
     avg_duration = db.Column(db.Integer)
+    year_published = db.Column(db.String(4))  # Year of publication, stored as a string to accommodate various formats
     image = db.Column(JSONB, default=dict)  # Store both URL and thumbnail
     is_cooperative = db.Column(db.Boolean, default=False)
     is_team_based = db.Column(db.Boolean, default=False)

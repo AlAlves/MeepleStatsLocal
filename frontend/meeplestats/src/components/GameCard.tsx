@@ -11,9 +11,7 @@ import { useTranslation } from "react-i18next";
 
 const GameCard = ({ game }: { game: Game }) => {
 
-  // Initialize state for price and isGift properties with the game object
-  const [price, setPrice] = useState(game.price);
-  const [isGifted, setIsGifted] = useState(game.isGifted);
+
   const [location, setLocation] = useState(game.location);
   const { colorScheme } = useMantineColorScheme();
   const isDarkMode = colorScheme === "dark";
@@ -53,9 +51,7 @@ const GameCard = ({ game }: { game: Game }) => {
     }
 
     requestOptions.body = JSON.stringify({
-      game_id: game.bgg_id,
-      price: price,
-      isGifted: isGifted,
+      bgg_id: game.bgg_id,
       location: location
     });
 
@@ -93,7 +89,7 @@ const GameCard = ({ game }: { game: Game }) => {
       <Card.Section>
         <div className="!relative !overflow-hidden !h-[160px]">
           <Image
-            src={game.thumbnail}
+            src={game.image.url}
             alt={game.name}
             fit="cover"
             className="!w-full !h-full !object-cover !transition-transform hover:!scale-105"
@@ -101,7 +97,7 @@ const GameCard = ({ game }: { game: Game }) => {
           />
 
           {/* Rulebook indicator */}
-          {game.hasRules && (
+          {game.rulebook != null && (
             <Tooltip label={t("Rulebook available", { defaultValue: "Rulebook available" })}>
               <Badge
                 className={`!absolute !top-2 !right-2 !z-10 ${isDarkMode ? "!bg-yellow-500 !text-gray-900" : "!bg-blue-500 !text-white"
@@ -131,8 +127,8 @@ const GameCard = ({ game }: { game: Game }) => {
         {/* Gift Checkbox */}
         <Checkbox
           label={t("GameGifted", { defaultValue: "Gift" })}
-          checked={isGifted}
-          onChange={(event) => setIsGifted(event.currentTarget.checked)}
+          checked={game.belongs_to_user !== null && game.belongs_to_user == 1}
+          onChange={() => () => {}}
           className="!text-sm"
           styles={{
             label: {
@@ -144,35 +140,6 @@ const GameCard = ({ game }: { game: Game }) => {
               cursor: "pointer",
             },
           }}
-        />
-
-        {/* Price Input */}
-        <TextInput
-          label={t("GamePrice", { defaultValue: "Price" })}
-          placeholder="0.00"
-          value={price}
-          onChange={(event) => setPrice(event.currentTarget.value)}
-          styles={{
-            input: {
-              borderRadius: "0.5rem",
-              border: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
-              backgroundColor: isDarkMode ? "#333" : "#f9fafb",
-              color: isDarkMode ? "#ddd" : "#000",
-              height: "36px",
-              fontSize: "0.875rem",
-              padding: "0 12px",
-            },
-            label: {
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              color: isDarkMode ? "#ddd" : "#666",
-              marginBottom: "4px",
-            },
-          }}
-          className="!mb-2"
-          type="number"
-          step="0.01"
-          inputMode="decimal"
         />
         <TextInput
           label={t("GameLocation", { defaultValue: "Location" })}

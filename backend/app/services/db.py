@@ -1,5 +1,5 @@
 from app import db
-from app.models import Player, Game, Match #, Wishlist, Achievement, Rulebook
+from app.models import Player, Game, Match, Player_to_Match, Match_to_Game #, Wishlist, Achievement, Rulebook
 from dotenv import load_dotenv
 import os
 
@@ -16,6 +16,8 @@ def find_one(collection, query):
         return Game.query.filter_by(**query).first()
     elif collection == "matches":
         return Match.query.filter_by(**query).first()
+    elif collection == "player_to_match":
+        return Player_to_Match.query.filter_by(**query).first()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 

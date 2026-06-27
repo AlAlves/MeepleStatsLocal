@@ -113,8 +113,16 @@ export default function Layout() {
           <Group>
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             <Burger opened={desktopOpened} onClick={toggleDesktop} visibleFrom="sm" size="sm" />
+            
             <Text fw={600} className={isDarkMode ? "!text-gray-100" : "!text-gray-900"}>
-              MeepleStats
+              <NavLink
+                fw={600}
+                component={Link}
+                to="/"
+                label={t('MeepleStats', { defaultValue: 'MeepleStats' })}
+                onClick={closeMobile}
+                className={isDarkMode ? "!text-gray-100" : "!text-gray-900"}
+              />
             </Text>
           </Group>
           <Group>
@@ -178,15 +186,7 @@ export default function Layout() {
 
         {/* Main Navigation Section */}
         <div className="!flex-1 !overflow-y-auto">
-          <NavLink
-            component={Link}
-            to="/"
-            label={t('Home', { defaultValue: 'Home' })}
-            onClick={closeMobile}
-            className={`!transition-colors !rounded-md !mb-1 ${isDarkMode ? "hover:!bg-gray-800" : "hover:!bg-gray-100"
-              }`}
-          />
-
+          
           {!isLoggedIn && (
             <>
               <NavLink
@@ -238,6 +238,14 @@ export default function Layout() {
                 component={Link}
                 to="/gameCollection"
                 label={t('Games Collection', { defaultValue: 'Games Collection' })}
+                onClick={closeMobile}
+                className={`!transition-colors !rounded-md !mb-1 ${isDarkMode ? "hover:!bg-gray-800" : "hover:!bg-gray-100"
+                  }`}
+              />
+              <NavLink
+                component={Link}
+                to="/addGame"
+                label={t('Add Game', { defaultValue: 'Add Game' })}
                 onClick={closeMobile}
                 className={`!transition-colors !rounded-md !mb-1 ${isDarkMode ? "hover:!bg-gray-800" : "hover:!bg-gray-100"
                   }`}
@@ -307,21 +315,6 @@ export default function Layout() {
                     }`}
                 >
                   {t('Import Games', { defaultValue: 'Import Games' })}
-                </Button>
-
-                <Button
-                  onClick={handleAchievementsSetup}
-                  variant="light"
-                  color="blue"
-                  size="sm"
-                  radius="md"
-                  fullWidth
-                  className={`!transition-colors ${isDarkMode
-                    ? "!bg-gray-700 !text-gray-200 hover:!bg-gray-600"
-                    : "!bg-blue-50 !text-blue-600 hover:!bg-blue-100"
-                    }`}
-                >
-                  {t('Setup Achievements', { defaultValue: 'Setup Achievements' })}
                 </Button>
               </Stack>
             </>

@@ -195,6 +195,25 @@ def get_games():
 @jwt_required()
 def update_games():
     data = request.get_json()
+
+    game_data = {
+        'bgg_id': data.get('bgg_id'),
+        'name': data.get('name'),
+        'base_game_id': data.get('base_game_id'),
+        'min_players': data.get('min_players'),
+        'max_players': data.get('max_players'),
+        'avg_duration': data.get('avg_duration'),
+        'year_published': data.get('year_published'),
+        'image': {'url': data.get('image_url'), 'thumbnail': data.get('image_thumbnail')},
+        'is_cooperative': data.get('is_cooperative', False),
+        'is_team_based': data.get('is_team_based', False),
+        'description': data.get('description'),
+        'belongs_to_user': data.get('belongs_to_user'),
+        'location': data.get('location'),
+        'rulebook': data.get('rulebook'),
+        'scoring_sheet': data.get('scoring_sheet')
+    }
+
     game_id = data.get('game_id')
     isGifted = data.get('isGifted')
     game_price = data.get('price')
@@ -224,37 +243,43 @@ def get_players():
 @data_bp.route('/logmatch', methods=['POST'])
 @jwt_required()
 def log_match():
-    date = request.form.get('date')
-    duration = request.form.get('duration')
-    game_name = request.form.get('game')
+    # MATCH INFO
     game_id = request.form.get('game_id')
+    date_str = request.form.get('date')
+    date_format = '%d/%m/%Y'
+    date = datetime.strptime(date_str, date_format)
+    duration = int(request.form.get('duration'))
+    nb_players = int(request.form.get('nb_players'))
+    nb_teams = int(request.form.get('nb_teams'))
+    winning_team = int(request.form.get('winning_team'))
+    winning_score = int(request.form.get('winning_score'))
+    is_cooperative = request.form.get('is_cooperative', '').strip().lower() in ['true', '1', 'yes']
+    is_over = request.form.get('is_over', '').strip().lower() in ['true', '1', 'yes']
     note = request.form.get('note')
-    isWin = request.form.get('isWin', '').strip().lower() in ['true', '1', 'yes']
-    isTeamMatch = request.form.get('isTeamMatch', '').strip().lower() in ['true', '1', 'yes']
-    winning_team = request.form.get('winningTeam')
-    use_manual_winner = request.form.get('useManualWinner', '').strip().lower() in ['true', '1', 'yes']
-    manual_winner_id = request.form.get('manualWinner')
+
+    # PLAYER TO MATCH INFO
+    game_name = request.form.get('game')
+
+    # MATCH TO GAME INFO
+    
 
     # Handle file upload
     image_file_name = None
 
-    if 'image' in request.files:
+    if 'image' in request.files and file.filename != '':
         file = request.files['image']
 
-        # Check if the file is empty
-        if file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
         # Create a unique filename
         unique_file = f"{uuid.uuid4()}_{file.filename}"
         if STORAGE_TYPE in ['local']:
             image_file_name = os.path.join(current_app.config['UPLOAD_FOLDER'], unique_file)
             file.save(image_file_name)
-        elif STORAGE_TYPE in ['s3']:
-             image_file_name = S3Client.put(
-                file,
-                unique_file,
-                content_type=file.content_type
-            )
+        # elif STORAGE_TYPE in ['s3']:
+        #     image_file_name = S3Client.put(
+        #         file,
+        #         unique_file,
+        #         content_type=file.content_type
+        #     )
 
     # Parse player data
     players = []
@@ -578,40 +603,62 @@ statistic_bp = Blueprint('statistic', __name__)
 @jwt_required()
 def addGame():
     data = request.get_json()
-    game_id = data.get('game_id')
+    bgg_id = data.get('bgg_id')
+    bgg_search = data.get('bgg_search')
 
-    # Get the game information from BGG API
-    bgg_api_url = f"https://www.boardgamegeek.com/xmlapi2/thing?id={game_id}"
-    response = requests.get(bgg_api_url)
+    if bgg_search:
+        # Get the game information from BGG API
+        bgg_api_url = f"https://www.boardgamegeek.com/xmlapi2/thing?id={bgg_id}"
+        response = requests.get(bgg_api_url)
 
-    if response.status_code != 200:
-        return jsonify({'error': 'Failed to fetch game information from BGG API'}), 500
+        if response.status_code != 200:
+            return jsonify({'error': 'Failed to fetch game information from BGG API'}), 500
 
-    # Parse the XML response (assuming the response is in XML format)
-    import xml.etree.ElementTree as ET
-    root = ET.fromstring(response.content)
-    game = root.find('item')
+        # Parse the XML response (assuming the response is in XML format)
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(response.content)
+        game = root.find('item')
 
-    game_data = {
-        'bgg_id': game.attrib['id'],
-        'name': game.find('name[@type=\'primary\']').attrib['value'],
-        'base_game_id': None if game.find('link[@type=\'boardgameexpansion\']') is None else game.find('link[@type=\'boardgameexpansion\']').attrib['id'],
-        'min_players': game.find('minplayers').attrib['value'],
-        'max_players': game.find('maxplayers').attrib['value'],
-        'avg_duration': game.find('playingtime').attrib['value'],
-        'image': {'url': game.find('image').text,
-                'thumbnail': game.find('thumbnail').text
-                },
-        'is_cooperative': False if game.find('link[@id=\'2023\']') is None else True,
-        'is_team_based': False if game.find('link[@id=\'2024\']') is None else True,
-        'description': game.find('description').text,
-        'belongs_to_user': None,
-        'location': None,
-        'rulebook': None,
-        'scoring_sheet': None
-    }
+        game_data = {
+            'bgg_id': game.attrib['id'],
+            'name': game.find('link[@type=\'primary\']').attrib['value'],
+            'base_game_id': None if game.find('link[@type=\'boardgameexpansion\']') is None else game.find('link[@type=\'boardgameexpansion\']').attrib['id'],
+            'min_players': game.find('minplayers').attrib['value'],
+            'max_players': game.find('maxplayers').attrib['value'],
+            'avg_duration': game.find('playingtime').attrib['value'],
+            'year_published': game.find('yearpublished').attrib['value'] if game.find('yearpublished') is not None else None,
+            'image': {'url': game.find('image').text,
+                    'thumbnail': game.find('thumbnail').text
+                    },
+            'is_cooperative': False,
+            'is_team_based': False, # if game.find('link[@id=\'2024\']') is None else True,
+            'description': game.find('description').text,
+            'belongs_to_user': None,
+            'location': None,
+            'rulebook': None,
+            'scoring_sheet': None
+        }
+    
+    else:
+        game_data = {
+            'bgg_id': bgg_id,
+            'name': data.get('name'),
+            'base_game_id': data.get('base_game_id'),
+            'min_players': data.get('min_players'),
+            'max_players': data.get('max_players'),
+            'avg_duration': data.get('avg_duration'),
+            'year_published': data.get('year_published'),
+            'image': {'url': data.get('image_url'), 'thumbnail': data.get('image_thumbnail')},
+            'is_cooperative': data.get('is_cooperative', False),
+            'is_team_based': data.get('is_team_based', False),
+            'description': data.get('description'),
+            'belongs_to_user': data.get('belongs_to_user'),
+            'location': data.get('location'),
+            'rulebook': data.get('rulebook'),
+            'scoring_sheet': data.get('scoring_sheet')
+        }
 
-    if find_one("games", {'bgg_id': game_id, 'name': game_data['name']}) is None:
+    if find_one("games", {'bgg_id': bgg_id, 'name': game_data['name']}) is None:
         insert_one("games", game_data)
         return jsonify({'message': 'Game added successfully'}), 201
     return jsonify({'error': 'Game already exists'}), 400

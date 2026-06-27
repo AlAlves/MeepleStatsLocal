@@ -10,18 +10,21 @@ import { useTranslation } from "react-i18next";
 interface ApiResponseItem {
   bgg_id: string;
   name: string;
+  base_game_id: number | null;
   min_players: string;
   max_players: string;
-  average_duration: string;
+  avg_duration: string;
+  year_published: string;
   image: {
     url: string;
   };
   is_cooperative: boolean;
-  notes: string;
-  price: string;
-  isGifted: boolean;
-  username: string;
-  location?: string;
+  is_team_based: boolean;
+  description: string;
+  belongs_to_user: number | null;
+  location: string;
+  rulebook: string | null;
+  scoring_sheet: string | null;
 }
 
 const GamesPage = () => {
@@ -72,18 +75,19 @@ const GamesPage = () => {
     const mappedGames = data.map((game) => ({
       bgg_id: game.bgg_id,
       name: game.name,
-      minPlayers: game.min_players,
-      maxPlayers: game.max_players,
-      playingTime: game.average_duration,
-      thumbnail: game.image.url,
-      yearPublished: "Unknown",
+      base_game_id: game.base_game_id || null,
+      min_players: game.min_players,
+      max_players: game.max_players,
+      avg_duration: game.avg_duration,
+      year_published: game.year_published,
+      image: game.image,
       is_cooperative: game.is_cooperative,
-      notes: game.notes,
-      price: game.price || "", // Ensure price field is included
-      isGifted: game.isGifted || false, // Ensure isGift field is included
-      username: game.username || "", // Get username from local storage
-      hasRules: bgg_ids.includes(game.bgg_id), // Add hasRules flag based on bgg_ids
-      location: game.location || "", // Ensure location field is included
+      is_team_based: game.is_team_based,
+      description: game.description,
+      belongs_to_user: game.belongs_to_user,
+      location: game.location || "",
+      rulebook: game.rulebook || null,
+      scoring_sheet: game.scoring_sheet || null,
     }));
 
     // Sort games by name
@@ -105,17 +109,21 @@ const GamesPage = () => {
     const items = Array.from(xml.querySelectorAll("item")).map((item) => ({
       bgg_id: item.getAttribute("id") || "",
       name: item?.querySelector("name")?.getAttribute("value") || "",
-      minPlayers: item?.querySelector("minplayers")?.getAttribute("value") || "",
-      maxPlayers: item?.querySelector("maxplayers")?.getAttribute("value") || "",
-      playingTime: item?.querySelector("playingtime")?.getAttribute("value") || "",
-      thumbnail: item?.querySelector("image")?.textContent || "",
-      yearPublished: item?.querySelector("yearpublished")?.getAttribute("value") ||
-        "Unknown",
+      base_game_id: parseInt(item?.querySelector("link[type='boardgameexpansion']")?.getAttribute("id") || "0", 10) || null,
+      min_players: item?.querySelector("minplayers")?.getAttribute("value") || "",
+      max_players: item?.querySelector("maxplayers")?.getAttribute("value") || "",
+      avg_duration: item?.querySelector("playingtime")?.getAttribute("value") || "",
+      year_published: item?.querySelector("yearpublished")?.getAttribute("value") || "",
+      image: {
+        url: item?.querySelector("image")?.textContent || ""
+      },
       is_cooperative: false,
-      notes: "",
-      price: "0",
-      isGifted: false,
-      username: "",
+      is_team_based: false,
+      description: "",
+      belongs_to_user: null,
+      location: "",
+      rulebook: null,
+      scoring_sheet: null,
     }));
 
     // Remove duplicates
@@ -133,16 +141,21 @@ const GamesPage = () => {
     const item = xml.querySelector("item");
     const details = {
       name: item?.querySelector("name")?.getAttribute("value") || "",
-      minPlayers: item?.querySelector("minplayers")?.getAttribute("value") || "",
-      maxPlayers: item?.querySelector("maxplayers")?.getAttribute("value") || "",
-      playingTime: item?.querySelector("playingtime")?.getAttribute("value") || "",
-      thumbnail: item?.querySelector("image")?.textContent || "",
-      yearPublished: item?.querySelector("yearpublished")?.getAttribute("value") || "Unknown",
+      base_game_id: parseInt(item?.querySelector("link[type='boardgameexpansion']")?.getAttribute("id") || "0", 10) || null,
+      min_players: item?.querySelector("minplayers")?.getAttribute("value") || "",
+      max_players: item?.querySelector("maxplayers")?.getAttribute("value") || "",
+      avg_duration: item?.querySelector("playingtime")?.getAttribute("value") || "",
+      year_published: item?.querySelector("yearpublished")?.getAttribute("value") || "",
+      image: {
+        url: item?.querySelector("image")?.textContent || ""
+      },
       is_cooperative: false,
-      notes: "",
-      price: "0",
-      isGifted: false,
-      username: "",
+      is_team_based: false,
+      description: "",
+      belongs_to_user: null,
+      location: "",
+      rulebook: null,
+      scoring_sheet: null,
     };
     setSelectedGame({ bgg_id: id, ...details });
   };
@@ -169,7 +182,8 @@ const GamesPage = () => {
 
 
     requestOptions.body = JSON.stringify({
-      game_id: selectedGame.bgg_id,
+      'bgg_search': selectedGame.bgg_id?true:false,
+      'bgg_id': selectedGame.bgg_id,
     });
 
     const response = await fetch(`${API_URL}/addGame`, requestOptions);
@@ -258,7 +272,7 @@ const GamesPage = () => {
           }}
           data={suggestions.map((game: Game) => ({
             value: `${game.name}_${game.bgg_id}`,
-            label: `${game.name} (${game.yearPublished})`,
+            label: `${game.name} (${game.year_published})`,
             id: game.bgg_id,
           }))}
           className="!mb-4"
@@ -311,7 +325,7 @@ const GamesPage = () => {
             >
               <Group align="flex-start" gap="lg" wrap="nowrap">
                 <Image
-                  src={selectedGame.thumbnail}
+                  src={selectedGame.image.url}
                   alt={selectedGame.name}
                   radius="md"
                   width={90}
@@ -351,13 +365,13 @@ const GamesPage = () => {
                     </Tooltip>
                   </Group>
                   <Text size="sm" c={isDarkMode ? "gray.3" : "gray.7"}>
-                    <b>Players:</b> {selectedGame.minPlayers} - {selectedGame.maxPlayers}
+                    <b>Players:</b> {selectedGame.min_players} - {selectedGame.max_players}
                   </Text>
                   <Text size="sm" c={isDarkMode ? "gray.3" : "gray.7"}>
-                    <b>Duration:</b> {selectedGame.playingTime} minutes
+                    <b>Duration:</b> {selectedGame.avg_duration} minutes
                   </Text>
                   <Text size="xs" c={isDarkMode ? "gray.5" : "gray.6"} mt={2}>
-                    Year: {selectedGame.yearPublished}
+                    Year: {selectedGame.year_published}
                   </Text>
                 </Stack>
               </Group>
