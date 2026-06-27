@@ -1,0 +1,404 @@
+import { useEffect, useState } from "react";
+import { Game } from "../model/Interfaces";
+import { API_URL, JWT_STORAGE } from "../model/Constants";
+import { Button, Container, Modal, Paper, useMantineColorScheme, Text, Title, Image, Autocomplete, Group, Divider, ActionIcon, Stack, Tooltip } from "@mantine/core";
+import { IconPlus } from "@tabler/icons-react";
+import { SiBoardgamegeek } from "react-icons/si";
+import { useTranslation } from "react-i18next";
+import AddGame from "../components/AddGame";
+
+interface ApiResponseItem {
+  bgg_id: string;
+  name: string;
+  base_game_id: number | null;
+  min_players: string;
+  max_players: string;
+  avg_duration: string;
+  year_published: string;
+  image: {
+    url: string;
+  };
+  is_cooperative: boolean;
+  is_team_based: boolean;
+  description: string;
+  belongs_to_user: boolean;
+  location: string;
+  rulebook: string | null;
+  scoring_sheet: string | null;
+}
+
+
+const addGamesPage = () => {
+
+  const { colorScheme } = useMantineColorScheme();
+  const isDarkMode = colorScheme === "dark";
+
+  const [games, setGames] = useState<Game[]>([]);
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<Game[]>([]);
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  //const [loading, setLoading] = useState(false);
+  const [modalOpened, setModalOpened] = useState(false);
+
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    if (query.length >= 3) {
+      setSuggestions([]); // Clear suggestions
+      searchGames(query); // Search for games
+    } else {
+      setSuggestions([]); // Clear suggestions
+      setSelectedGame(null); // Clear selected game
+    }
+  }, [query]);
+
+  const fetchGames = async () => {
+    const requestOptions: RequestInit = {
+      method: "GET",
+    };
+    // Check the JWT_STORAGE value and set credentials or headers accordingly
+    if (JWT_STORAGE === "cookie") {
+      requestOptions.credentials = "include";
+    } else if (JWT_STORAGE === "localstorage") {
+      requestOptions.headers = {
+        Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
+      };
+    }
+
+    const [gamesResponse, rulesResponse] = await Promise.all([
+      fetch(`${API_URL}/games`, requestOptions),
+      fetch(`${API_URL}/getGamesWithRules`, requestOptions),
+    ]);
+    const data: ApiResponseItem[] = await gamesResponse.json();
+    const bgg_ids = await rulesResponse.json();
+
+    const mappedGames = data.map((game) => ({
+      bgg_id: game.bgg_id,
+      name: game.name,
+      base_game_id: game.base_game_id || null,
+      min_players: game.min_players,
+      max_players: game.max_players,
+      avg_duration: game.avg_duration,
+      year_published: game.year_published,
+      image: game.image,
+      is_cooperative: game.is_cooperative,
+      is_team_based: game.is_team_based,
+      description: game.description,
+      belongs_to_user: game.belongs_to_user,
+      location: game.location || "",
+      rulebook: game.rulebook || null,
+      scoring_sheet: game.scoring_sheet || null,
+    }));
+
+
+    // Sort games by name
+    mappedGames.sort((a, b) => a.name.localeCompare(b.name));
+
+    setGames(mappedGames);
+  };
+
+  useEffect(() => {
+    fetchGames();
+  }, []);
+
+  const searchGames = async (query: string) => {
+    if (query.length < 3) return; // Minimum 3 characters for search query
+    const response = await fetch(`${API_URL}/bgg/search?query=${query}`);
+    const text = await response.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "text/xml");
+    const items = Array.from(xml.querySelectorAll("item")).map((item) => ({
+      bgg_id: item.getAttribute("id") || "",
+      name: item?.querySelector("name")?.getAttribute("value") || "",
+      base_game_id: parseInt(item?.querySelector("link[type='boardgameexpansion']")?.getAttribute("id") || "0", 10) || null,
+      min_players: item?.querySelector("minplayers")?.getAttribute("value") || "",
+      max_players: item?.querySelector("maxplayers")?.getAttribute("value") || "",
+      avg_duration: item?.querySelector("playingtime")?.getAttribute("value") || "",
+      year_published: item?.querySelector("yearpublished")?.getAttribute("value") || "",
+      image: {
+        url: item?.querySelector("image")?.textContent || ""
+      },
+      is_cooperative: false,
+      is_team_based: false,
+      description: "",
+      belongs_to_user: false,
+      location: "",
+      rulebook: null,
+      scoring_sheet: null,
+    }));
+
+    // Remove duplicates
+    const uniqueItems = items.filter((item, index, self) =>
+      index === self.findIndex((t) => t.bgg_id === item.bgg_id)
+    );
+    setSuggestions(uniqueItems);
+  };
+
+  const selectGame = async (id: string) => {
+    const response = await fetch(`${API_URL}/bgg/thing?id=${id}`);
+    const text = await response.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "text/xml");
+    const item = xml.querySelector("item");
+    const details = {
+      name: item?.querySelector("name")?.getAttribute("value") || "",
+      base_game_id: parseInt(item?.querySelector("link[type='boardgameexpansion']")?.getAttribute("id") || "0", 10) || null,
+      min_players: item?.querySelector("minplayers")?.getAttribute("value") || "",
+      max_players: item?.querySelector("maxplayers")?.getAttribute("value") || "",
+      avg_duration: item?.querySelector("playingtime")?.getAttribute("value") || "",
+      year_published: item?.querySelector("yearpublished")?.getAttribute("value") || "",
+      image: {
+        url: item?.querySelector("image")?.textContent || ""
+      },
+      is_cooperative: false,
+      is_team_based: false,
+      description: "",
+      belongs_to_user: false,
+      location: "",
+      rulebook: null,
+      scoring_sheet: null,
+    };
+    setSelectedGame({ bgg_id: id, ...details });
+  };
+
+  const addGame = async () => {
+    if (!selectedGame) return;
+    //setLoading(true);
+
+    const requestOptions: RequestInit = {
+      method: "POST",
+    };
+
+    if (JWT_STORAGE === "cookie") {
+      requestOptions.credentials = "include";
+      requestOptions.headers = {
+        "Content-Type": "application/json",
+      };
+    } else if (JWT_STORAGE === "localstorage") {
+      requestOptions.headers = {
+        Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
+        "Content-Type": "application/json"
+      };
+    }
+
+
+    requestOptions.body = JSON.stringify({
+      game_id: selectedGame.bgg_id,
+    });
+
+    const response = await fetch(`${API_URL}/addGame`, requestOptions);
+    if (response.ok) {
+      fetchGames();
+    }
+
+    //setLoading(false);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedGame(null);
+    setSuggestions([]);
+    setQuery("");
+    setModalOpened(false);
+  };
+
+  const openBGGLink = () => {
+    const bggUrl = `https://boardgamegeek.com/boardgame/${selectedGame?.bgg_id}/`;
+    window.open(bggUrl, "_blank");
+  };
+
+  return (
+    <Container size="xl" className="!px-4 md:!px-6">
+      <Group justify="flex-end" mb="md">
+        <ActionIcon
+          variant={isDarkMode ? "filled" : "light"}
+          color="blue"
+          size={48}
+          radius="xl"
+          onClick={() => setModalOpened(true)}
+          aria-label="Add a Game"
+          style={{
+            boxShadow: isDarkMode
+              ? "0 2px 12px 0 rgba(30,64,175,0.10)"
+              : "0 2px 12px 0 rgba(59,130,246,0.08)",
+            transition: "box-shadow 0.2s",
+          }}
+        >
+          <IconPlus size={28} />
+        </ActionIcon>
+      </Group>
+      <Modal
+        opened={modalOpened}
+        onClose={handleCloseModal}
+        title={
+          <Group gap="xs">
+            <IconPlus size={22} />
+            <Text fw={600} size="lg">
+              {t("GamesPageAddGameModalTitle", { defaultValue: "Add Game" })}
+            </Text>
+          </Group>
+        }
+        centered
+        size="lg"
+        overlayProps={{
+          blur: 2,
+          opacity: 0.15,
+        }}
+        radius="lg"
+        padding="lg"
+        styles={{
+          header: {
+            borderBottom: `1px solid ${isDarkMode ? "#374151" : "#e5e7eb"}`,
+            marginBottom: 8,
+            paddingBottom: 8,
+          },
+        }}
+      >
+        <Autocomplete
+          clearable
+          label={t("GamesPageSearch", { defaultValue: "Search" })}
+          placeholder={t("GamesPageSearchPlaceholder", { defaultValue: "Type at least 3 characters" })}
+          value={query}
+          onChange={(value) => {
+            setQuery(value);
+            searchGames(value);
+          }}
+          onOptionSubmit={(item) => {
+            const itemName = item.split("_")[0];
+            const itemId = item.split("_")[1];
+            const selected = suggestions.find((game) => game.name.toLowerCase() === itemName.toLowerCase() && game.bgg_id === itemId);
+            if (selected) {
+              selectGame(selected.bgg_id);
+            }
+          }}
+          data={suggestions.map((game: Game) => ({
+            value: `${game.name}_${game.bgg_id}`,
+            label: `${game.name} (${game.year_published})`,
+            id: game.bgg_id,
+          }))}
+          className="!mb-4"
+          styles={{
+            input: {
+              borderRadius: '0.5rem',
+              height: '2.5rem',
+              backgroundColor: isDarkMode ? "#374151" : "white",
+              borderColor: isDarkMode ? "#6b7280" : "#d1d5db",
+              color: isDarkMode ? "#f3f4f6" : "#1f2937",
+              "&:focus": {
+                borderColor: isDarkMode ? "#60a5fa" : "#3b82f6",
+              },
+            },
+            label: {
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              marginBottom: '4px',
+              color: isDarkMode ? "#d1d5db" : "#4b5563",
+            },
+            dropdown: {
+              backgroundColor: isDarkMode ? "#374151" : "white",
+              borderColor: isDarkMode ? "#6b7280" : "#d1d5db",
+            },
+            option: {
+              backgroundColor: isDarkMode ? "#374151" : "white",
+              color: isDarkMode ? "#f3f4f6" : "#1f2937",
+              "&:hover": {
+                backgroundColor: isDarkMode ? "#4b5563" : "#f9fafb",
+              },
+            },
+          }}
+        />
+
+        {selectedGame && (
+          <>
+            <Divider my="md" />
+            <Paper
+              p="md"
+              withBorder
+              radius="md"
+              className="!mt-4"
+              style={{
+                background: isDarkMode ? "#232b3a" : "#f8fafc",
+                borderColor: isDarkMode ? "#2563eb" : "#3b82f6",
+                boxShadow: isDarkMode
+                  ? "0 2px 8px 0 rgba(30,64,175,0.10)"
+                  : "0 2px 8px 0 rgba(59,130,246,0.06)",
+              }}
+            >
+              <Group align="flex-start" gap="lg" wrap="nowrap">
+                <Image
+                  src={selectedGame.image.url}
+                  alt={selectedGame.name}
+                  radius="md"
+                  width={90}
+                  height={90}
+                  fit="cover"
+                  className="!rounded-md !shadow"
+                  style={{
+                    border: `2px solid ${isDarkMode ? "#2563eb" : "#3b82f6"}`,
+                    background: "#fff",
+                  }}
+                />
+                <Stack w="100%" gap={4}>
+                  <Group justify="space-between" align="center" mb={0}>
+                    <Title
+                      order={3}
+                      className="!mb-0 !text-lg !font-semibold"
+                      c={isDarkMode ? "blue.2" : "blue.7"}
+                      style={{
+                        lineHeight: 1.2,
+                        wordBreak: "break-word",
+                        maxWidth: "calc(100% - 40px)",
+                      }}
+                    >
+                      {selectedGame.name}
+                    </Title>
+                    <Tooltip label={t("GamesPageOpenOnBGG", { defaultValue: "Open on BoardGameGeek" })} withArrow>
+                      <ActionIcon
+                        variant="light"
+                        color="blue"
+                        size="lg"
+                        onClick={openBGGLink}
+                        style={{ marginLeft: 8 }}
+                        aria-label="Open on BoardGameGeek"
+                      >
+                        <SiBoardgamegeek size={22} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                  <Text size="sm" c={isDarkMode ? "gray.3" : "gray.7"}>
+                    <b>Players:</b> {selectedGame.min_players} - {selectedGame.max_players}
+                  </Text>
+                  <Text size="sm" c={isDarkMode ? "gray.3" : "gray.7"}>
+                    <b>Duration:</b> {selectedGame.avg_duration} minutes
+                  </Text>
+                  <Text size="xs" c={isDarkMode ? "gray.5" : "gray.6"} mt={2}>
+                    Year: {selectedGame.year_published}
+                  </Text>
+                </Stack>
+              </Group>
+              <Button
+                onClick={() => { addGame(); handleCloseModal(); }}
+                fullWidth
+                mt="md"
+                size="md"
+                leftSection={<IconPlus size={18} />}
+                className={`!transition-colors !font-semibold ${isDarkMode
+                  ? "!bg-blue-700 !text-blue-200 hover:!bg-blue-600"
+                  : "!bg-blue-600 !text-white hover:!bg-blue-700"
+                  }`}
+                radius="md"
+                style={{ marginTop: 24, fontSize: 16, letterSpacing: 0.5 }}
+              >
+                {t("GamesPageAddGameToCollectionButton", { defaultValue: "Add Game to Collection" })}
+              </Button>
+            </Paper>
+          </>
+        )}
+      </Modal>
+      <>
+        <AddGame />
+      </>
+    </Container>
+  );
+};
+
+export default addGamesPage;
