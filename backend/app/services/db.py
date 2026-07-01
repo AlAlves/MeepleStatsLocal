@@ -16,8 +16,10 @@ def find_one(collection, query):
         return Game.query.filter_by(**query).first()
     elif collection == "matches":
         return Match.query.filter_by(**query).first()
-    elif collection == "player_to_match":
+    elif collection == "players_to_matches":
         return Player_to_Match.query.filter_by(**query).first()
+    elif collection == "matches_to_games":
+        return Match_to_Game.query.filter_by(**query).first()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -29,6 +31,10 @@ def find_all(collection, query):
         return Game.query.filter_by(**query).all()
     elif collection == "matches":
         return Match.query.filter_by(**query).all()
+    elif collection == "players_to_matches":
+        return Player_to_Match.query.filter_by(**query).all()
+    elif collection == "matches_to_games":
+        return Match_to_Game.query.filter_by(**query).all()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -40,61 +46,79 @@ def count_documents(collection, query):
         return Game.query.filter_by(**query).count()
     elif collection == "matches":
         return Match.query.filter_by(**query).count()
+    elif collection == "players_to_matches":
+        return Player_to_Match.query.filter_by(**query).count()
+    elif collection == "matches_to_games":
+        return Match_to_Game.query.filter_by(**query).count()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
 def insert_one(collection, document):
     """Insert a single document into the specified collection."""
     if collection == "players":
-        player = Player(**document)
-        db.session.add(player)
+        ret = Player(**document)
+        db.session.add(ret)
     elif collection == "games":
-        game = Game(**document)
-        db.session.add(game)
+        ret = Game(**document)
+        db.session.add(ret)
     elif collection == "matches":
-        match = Match(**document)
-        db.session.add(match)
+        ret = Match(**document)
+        db.session.add(ret)
+    elif collection == "players_to_matches":
+        ret = Player_to_Match(**document)
+        db.session.add(ret)
+    elif collection == "matches_to_games":
+        ret = Match_to_Game(**document)
+        db.session.add(ret)
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
     db.session.commit()
+    return ret
 
 def update_one(collection, query, update):
     """Update a single document in the specified collection."""
     if collection == "players":
-        player = Player.query.filter_by(**query).first()
-        if player:
-            for key, value in update.items():
-                setattr(player, key, value)
+        ret = Player.query.filter_by(**query).first()
     elif collection == "games":
-        game = Game.query.filter_by(**query).first()
-        if game:
-            for key, value in update.items():
-                setattr(game, key, value)
+        ret = Game.query.filter_by(**query).first()
     elif collection == "matches":
-        match = Match.query.filter_by(**query).first()
-        if match:
-            for key, value in update.items():
-                setattr(match, key, value)
+        ret = Match.query.filter_by(**query).first()
+    elif collection == "players_to_matches":
+        ret = Player_to_Match.query.filter_by(**query).first()
+    elif collection == "matches_to_games":
+        ret = Match_to_Game.query.filter_by(**query).first()
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
+    if ret:
+        for key, value in update.items():
+            setattr(ret, key, value)
     db.session.commit()
+    return ret
 
 def delete_one(collection, query):
     """Delete a single document from the specified collection."""
     if collection == "players":
-        player = Player.query.filter_by(**query).first()
-        if player:
-            db.session.delete(player)
+        ret = Player.query.filter_by(**query).first()
+        if ret:
+            db.session.delete(ret)
     elif collection == "games":
-        game = Game.query.filter_by(**query).first()
-        if game:
-            db.session.delete(game)
+        ret = Game.query.filter_by(**query).first()
+        if ret:
+            db.session.delete(ret)
     elif collection == "matches":
-        match = Match.query.filter_by(**query).first()
-        if match:
-            db.session.delete(match)
+        ret = Match.query.filter_by(**query).first()
+        if ret:
+            db.session.delete(ret)
+    elif collection == "players_to_matches":
+        ret = Player_to_Match.query.filter_by(**query).first()
+        if ret:
+            db.session.delete(ret)
+    elif collection == "matches_to_games":
+        ret = Match_to_Game.query.filter_by(**query).first()
+        if ret:
+            db.session.delete(ret)
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
@@ -103,17 +127,25 @@ def delete_one(collection, query):
 def delete_many(collection, query):
     """Delete multiple documents from the specified collection."""
     if collection == "players":
-        players = Player.query.filter_by(**query).all()
-        for player in players:
-            db.session.delete(player)
+        rets = Player.query.filter_by(**query).all()
+        for ret in rets:
+            db.session.delete(ret)
     elif collection == "games":
-        games = Game.query.filter_by(**query).all()
-        for game in games:
-            db.session.delete(game)
+        rets = Game.query.filter_by(**query).all()
+        for ret in rets:
+            db.session.delete(ret)
     elif collection == "matches":
-        matches = Match.query.filter_by(**query).all()
-        for match in matches:
-            db.session.delete(match)
+        rets = Match.query.filter_by(**query).all()
+        for ret in rets:
+            db.session.delete(ret)
+    elif collection == "players_to_matches":
+        rets = Player_to_Match.query.filter_by(**query).all()
+        for ret in rets:
+            db.session.delete(ret)
+    elif collection == "matches_to_games":
+        rets = Match_to_Game.query.filter_by(**query).all()
+        for ret in rets:
+            db.session.delete(ret)
     else:
         raise ValueError(f"Unknown collection: {collection}")
     

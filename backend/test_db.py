@@ -3,23 +3,38 @@ import os
 from flask import jsonify
 
 from app import create_app, db
-from app.services.db import find_all, find_one, insert_one, query_result_to_dict, query_results_to_dict
+from app.services.db import find_all, find_one, insert_one, delete_one, update_one, query_result_to_dict, query_results_to_dict
 from app.models import Match, Player, Player_to_Match
 
 app = create_app()
 
 with app.app_context():
 
-    insert_one("players", {
+    updt = update_one("games", {'bgg_id' : 1}, {'belongs_to_user': None})
+
+    print(f"update game: {updt}")
+
+    dele = delete_one("players", {'username': 'Alxr'})
+
+    print(f"delete player : {dele}")
+
+    pl = {
         'username': 'Alxr',
         'password': hash('azerty'),
         'email': None,
         'image': '',
+        # 'created_at' : '',
         'total_matches': 0,
         'wins': 0,
         'winstreak': 0,
-        'longest_winstreak': 0
-    })
+        'longest_winstreak': 0,
+    }
+
+    ins = insert_one("players", pl)
+
+    print(f"insert player ins : {ins.id}")
+    print(f"insert player pl : {pl}")
+
 
     players = find_all("players", {})
     for player in players:
@@ -107,6 +122,7 @@ with app.app_context():
     }
 
     if find_one("games", {'bgg_id': '1'}) is None:
-        insert_one("games", game_data)
+        ins = insert_one("games", game_data)
+        print(f"insert game : {ins}")
     else:
         print(f"Game with bgg_id '1' is : {query_result_to_dict(find_one('games', {'bgg_id': '1'}))}")

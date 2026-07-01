@@ -18,7 +18,7 @@ class Player(db.Model):
 class Game(db.Model):
     __tablename__ = 'games'
     id = db.Column(db.Integer, primary_key=True)
-    bgg_id = db.Column(db.String(128), default=None)
+    bgg_id = db.Column(db.Integer, default=None)
     name = db.Column(db.String(512))
     base_game_id = db.Column(db.Integer, default=None)  # For expansions, store the base game ID, None for base games
     min_players = db.Column(db.Integer)
@@ -39,10 +39,10 @@ class Match(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
     date = db.Column(db.DateTime, default=datetime.now(timezone.utc))
-    duration = db.Column(db.Integer)  # Duration in minutes
+    duration = db.Column(db.Integer, default=None)  # Duration in minutes
     nb_players = db.Column(db.Integer)
     nb_teams = db.Column(db.Integer, default=0)
-    winning_team = db.Column(db.Integer, default=None)
+    winner = db.Column(db.Integer, default=None) # Either team id if nb_team > 0 or player_id
     winning_score = db.Column(db.Integer, default=None)
     is_cooperative = db.Column(db.Boolean, default=False)
     is_over = db.Column(db.Boolean, default=True) # Indicates if the match is over or still ongoing

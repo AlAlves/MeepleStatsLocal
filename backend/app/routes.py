@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 import traceback
 from dotenv import find_dotenv, load_dotenv
 from flask import Blueprint, Response, jsonify, render_template, request, send_from_directory
@@ -215,17 +215,15 @@ def update_games():
     }
 
     game_id = data.get('game_id')
-    isGifted = data.get('isGifted')
-    game_price = data.get('price')
-    location = data.get('location')
 
     if game_id:
         # Update the game in the database
-        res = update_one("games", {'bgg_id': game_id}, {'isGifted': isGifted, 'price': float(game_price) if game_price else None, 'location': location})
+        res = update_one("games", {'id': game_id}, game_data)
         if res:
             return jsonify({'message': 'Game updated successfully'}), 200
         else:
             return jsonify({'error': 'No modification applied'}), 400
+
     return jsonify({'error': 'Input not valid'}), 400
 
 
@@ -243,189 +241,98 @@ def get_players():
 @data_bp.route('/logmatch', methods=['POST'])
 @jwt_required()
 def log_match():
-    # MATCH INFO
+    # PARSE GAME DATA
     game_id = request.form.get('game_id')
-    date_str = request.form.get('date')
-    date_format = '%d/%m/%Y'
-    date = datetime.strptime(date_str, date_format)
-    duration = int(request.form.get('duration'))
-    nb_players = int(request.form.get('nb_players'))
-    nb_teams = int(request.form.get('nb_teams'))
-    winning_team = int(request.form.get('winning_team'))
-    winning_score = int(request.form.get('winning_score'))
-    is_cooperative = request.form.get('is_cooperative', '').strip().lower() in ['true', '1', 'yes']
-    is_over = request.form.get('is_over', '').strip().lower() in ['true', '1', 'yes']
-    note = request.form.get('note')
-
-    # PLAYER TO MATCH INFO
-    game_name = request.form.get('game')
-
-    # MATCH TO GAME INFO
-    
-
-    # Handle file upload
-    image_file_name = None
-
-    if 'image' in request.files and file.filename != '':
-        file = request.files['image']
-
-        # Create a unique filename
-        unique_file = f"{uuid.uuid4()}_{file.filename}"
-        if STORAGE_TYPE in ['local']:
-            image_file_name = os.path.join(current_app.config['UPLOAD_FOLDER'], unique_file)
-            file.save(image_file_name)
-        # elif STORAGE_TYPE in ['s3']:
-        #     image_file_name = S3Client.put(
-        #         file,
-        #         unique_file,
-        #         content_type=file.content_type
-        #     )
-
-    # Parse player data
-    players = []
-    index = 0
-    while True:
-        player_id = request.form.get(f'players[{index}][id]')
-        # Check if the score is set, if not, assign null
-        player_score = request.form.get(f'players[{index}][score]') or 0
-        player_name = request.form.get(f'players[{index}][name]')
-        player_team = request.form.get(f'players[{index}][team]') or None
-        if player_id is None:
-            break
-        players.append({'id': player_id, 'name': player_name, 'score': int(player_score), 'team': player_team})
-        index += 1
-                                                  
-    # Fill mongo collections
-
-    # Compute winner, worst_score_player, is_cooperative, total_score
-
-    game = find_one("games", {'bgg_id': game_id})
+    game = find_one("games", {'id': game_id})
     if not game:
         return jsonify({'error': 'Game not found'}), 404
     
+    is_cooperative = request.form.get(f'is_cooperative')
+    is_team_based = request.form.get(f'is_team_based')
+    if is_cooperative:
+        is_coop_win = request.form.get(f'is_coop_win')
 
-    game_highest_score = game['record_score_by_player']['score']
+    # PARSE PLAYER DATA
+    players = []
+    teams = []
+    winner_id = None
+    best_score = None
+    winning_team = None
+    index = 0
+    while True:
+        player_id = request.form.get(f'players[{index}][id]') or None
+        # Check if the score is set, if not, assign null
+        player_score = request.form.get(f'players[{index}][score]') or 0
+        player_username = request.form.get(f'players[{index}][username]')
+        player_team = 1 if is_cooperative else ( request.form.get(f'players[{index}][team]') or None )
+        if best_score is None or player_score > best_score:
+            winner = player_id
+            best_score = player_score
+            winning_team = player_team
+        if player_team not in teams and player_team is not None:
+            teams.append(player_team)
+        if player_id is None:
+            break
+        players.append({'id': player_id, 'username': player_username, 'score': int(player_score), 'team': player_team})
+        index += 1
+    
+    if is_cooperative:
+        teams = [0, 1] # 0 is ENV, 1 is PLAYERS
+        winning_team = 1 if is_coop_win else 0
 
-    if (game['is_cooperative']):
-        # Check if the match is cooperative --> each player wins
-        winner = [player for player in players] if isWin else []
-        total_score = None
-        worst_score_player = None
-    elif isTeamMatch and winning_team is not None:
-        # Check if the match is a team match --> the team with the highest score wins
-        winner = [player for player in players if player['team'] == winning_team]  # All players in the winning team
-        total_score = None
-        worst_score_player = None
-    else:
-        # Check if the match is not cooperative --> the player with the highest score wins
-        if use_manual_winner and manual_winner_id is not None:
-            # Use the manual winner if provided
-            winner = next((player for player in players if player['id'] == manual_winner_id), None)
-            total_score = None
-            worst_score_player = None
-        else:
-            winner = max(players, key=lambda x: x['score'])
-            total_score = sum([player['score'] for player in players])
-            worst_score_player = min(players, key=lambda x: x['score'])
 
-    # Create the match
+    # MATCH DATA TODO is coop & win
+    date_str = request.form.get('date')
+    date_format = '%d/%m/%Y'
+    
+    
     match_data = {
-        'game_id': game_id,
-        'game_name': game_name,
-        'game_image': game['image']['url'],
-        'date': date,
-        'players': [player for player in players],
-        'expansions_used': [],
-        'notes': note,
-        'game_duration': duration,
-        'winner': winner,
-        'worst_score_player': worst_score_player,
-        'is_cooperative': game['is_cooperative'],
-        'is_team_match': isTeamMatch,
-        'total_score': total_score,
-        'winning_team': winning_team,
-        'use_manual_winner': use_manual_winner,
+        'game_id' : game_id,
+        'date' : datetime.strptime(date_str, date_format) if date_str is not None else datetime.now(timezone.utc),
+        'duration' : int(request.form.get('duration')) if request.form.get('duration') is not None else None,
+        'nb_players' : len(players),
+        'nb_teams' : len(teams) if is_team_based or is_cooperative else 0,
+        'winner' : int(winning_team) if len(teams) > 0 or is_cooperative else int(winner_id),
+        'best_score' : int(best_score),
+        'is_cooperative' : game.is_cooperative,
+        'is_over' : request.form.get('is_over', '').strip().lower() in ['true', '1', 'yes'] if request.form.get('is_over') is not None else True,
+        'note' : request.form.get('note'),
     }
 
-    if image_file_name is not None:
-        match_data['image'] = {
-            'type' : STORAGE_TYPE,
-            'filename' : image_file_name
-        }
+    new_match = insert_one("matches", match_data)
+    match_id = new_match.id 
 
-    result = insert_one("matches", match_data)
-    match_id = result.inserted_id 
+    # MATCH TO GAME INFO TODO
+    match_to_game_data = {
+        'match_id' : match_id,
+        'game_id' : game_id,
+    }
 
-    # Update players' stats
+    m2g = insert_one("matches_to_games", match_to_game_data) 
 
+    # PLAYER TO MATCH INFO
+    p2ms = []
 
     for player in players:
-        player_data = find_one("players", {'id': player['id']})
-        player_data['total_matches'] += 1
-        if game['is_cooperative'] and isWin:
-            player_data['wins'] += 1
-            player_data['winstreak'] += 1
-        elif isTeamMatch and winning_team is not None and player['team'] == winning_team:
-            player_data['wins'] += 1
-            player_data['winstreak'] += 1
-        elif not game['is_cooperative'] and not isTeamMatch and isinstance(winner, dict) and player['id'] == winner['id']:
-            player_data['wins'] += 1
-            player_data['num_competitive_win'] += 1
-            player_data['winstreak'] += 1
-        else:
-            player_data['losses'] += 1
-            player_data['winstreak'] = 0
-        
-        # Update player's longest winstreak
-        if player_data['winstreak'] > player_data['longest_winstreak']:
-            player_data['longest_winstreak'] = player_data['winstreak']
+        player_to_match_data = {
+            'player_id' : player['id'],
+            'match_id' : match_id,
+            'team_id' : player['team'],
+            'score' : player['score'],
+            'win' : player['team'] == winning_team if is_team_based or is_cooperative else player['score'] == best_score,
+        }
 
-        # update player's match history
-        player_data['matches'].append({
-            'match_id': str(match_id),
-            'game_id': game_id,
-            'is_winner': (
-                (game['is_cooperative'] and isWin) or  # Always True if coop and isWin
-                (not game['is_cooperative'] and not isTeamMatch and isinstance(winner, dict) and player['id'] == winner['id']) or  # Competitive game, check player ID
-                (isTeamMatch and winning_team is not None and player['team'] == winning_team)  # Team match, check team
-            ),
-            'score': player['score'],
-            'date': date,
-        })
+        p2m = insert_one("players_to_matches", player_to_match_data)
+        p2ms.append(p2m.id)
+    
+    ret = {
+        'message': 'Match logged successfully',
+        'match_id': match_id,
+        'match_to_game_id': m2g.id,
+        'players_to_match_id_tab': p2ms,
+    }
 
-        if player['score'] > game_highest_score:
-            game['record_score_by_player'] = {
-                'id': player['id'],
-                'name': player['name'],
-                'score': player['score'],
-            }
-
-        # update player's Collection
-        update_one("players", {'id': player['id']}, {'$set': player_data})
-
-    # Update game match history
-    game['matches'].append({
-        'match_id': str(match_id),
-        'game_duration': duration,
-        'total_score': total_score,
-        'winner': winner,
-    })
-
-    # Loop over matches and update average score
-    total_score = 0
-    for match in game['matches']:
-        if match['total_score'] is not None:
-            total_score += match['total_score']
-    game['average_score'] = total_score / len(game['matches'])
-
-    # Update game's Collection
-    update_one("games", {'bgg_id': game_id}, {'$set': game})
-
-    # Check and update achievements
-    player_ids = [player['id'] for player in players]
-    check_update_achievements(player_ids, match_data)
-
-    return jsonify({'message': 'Match logged successfully'}), 201
+    return jsonify(ret), 201
 
 @data_bp.route('/wishlist', methods=['GET'])
 @jwt_required()
