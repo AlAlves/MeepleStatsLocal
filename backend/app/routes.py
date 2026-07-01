@@ -13,7 +13,7 @@ import json
 
 from app import db
 from .models import Player, Game, Match
-from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict
+from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict, get_match_history, get_match_history_by_games, get_match_history_by_players
 from .services.bgg_import import import_games_from_bgg
 
 from .services.rag import query_llm, query_index, display_search_results, initialize_pinecone, create_safe_namespace, index_single_pdf, clear_namespace
@@ -241,16 +241,40 @@ def get_players():
 @data_bp.route('/logmatch', methods=['POST'])
 @jwt_required()
 def log_match():
-    # PARSE GAME DATA
-    game_id = request.form.get('game_id')
-    game = find_one("games", {'id': game_id})
-    if not game:
-        return jsonify({'error': 'Game not found'}), 404
-    
+    # PARSE GAME DATA (multiple if extensions)
+    game_ids_is_expansion = [] # list of tuple (id, bool, id) with id_of_game, is_expansion, id_of_base_game (if expansion, else None)
+    main_game_id = None
+    while True:
+        game_id = request.form.get(f'games[{index}][id]') or None
+        if game_id is None:
+            break
+        game = find_one("games", {'id': game_id})
+        if not game:
+            return jsonify({'error': f"Game {game_id} not found"}), 404
+        game_id_is_expansion = (game_id, game.base_game_id is not None, game.base_game_id)
+        game_ids_is_expansion.append(game_id_is_expansion)
+
     is_cooperative = request.form.get(f'is_cooperative')
     is_team_based = request.form.get(f'is_team_based')
     if is_cooperative:
         is_coop_win = request.form.get(f'is_coop_win')
+    
+    # Search for main_game_id and check for multiple base game
+    main_game_id = None
+    nb_games = len(game_ids_is_expansion)
+    for game_id, is_expansion, base_game_id in game_ids_is_expansion:
+        if not is_expansion:
+            if main_game_id is None:
+                main_game_id = game_id
+            elif main_game_id == game_id:
+                game_ids_is_expansion.remove( (game_id, is_expansion, base_game_id) ) # remove duplicated basegame
+            else:
+                return jsonify({'error': f"Multiple base games found in the match: {main_game_id}, {game_id}"}), 400
+        else:
+            if main_game_id is None or main_game_id == base_game_id:
+                main_game_id = base_game_id
+            else:
+                return jsonify({'error': f"Multiple base games found in the match: {main_game_id}, {base_game_id}"}), 400
 
     # PARSE PLAYER DATA
     players = []
@@ -261,18 +285,19 @@ def log_match():
     index = 0
     while True:
         player_id = request.form.get(f'players[{index}][id]') or None
-        # Check if the score is set, if not, assign null
+        # Check if another player is defined, else break loop
+        if player_id is None:
+            break
         player_score = request.form.get(f'players[{index}][score]') or 0
         player_username = request.form.get(f'players[{index}][username]')
         player_team = 1 if is_cooperative else ( request.form.get(f'players[{index}][team]') or None )
         if best_score is None or player_score > best_score:
-            winner = player_id
+            winner_id = player_id
             best_score = player_score
             winning_team = player_team
         if player_team not in teams and player_team is not None:
             teams.append(player_team)
-        if player_id is None:
-            break
+        
         players.append({'id': player_id, 'username': player_username, 'score': int(player_score), 'team': player_team})
         index += 1
     
@@ -280,14 +305,11 @@ def log_match():
         teams = [0, 1] # 0 is ENV, 1 is PLAYERS
         winning_team = 1 if is_coop_win else 0
 
-
-    # MATCH DATA TODO is coop & win
+    # MATCH DATA
     date_str = request.form.get('date')
     date_format = '%d/%m/%Y'
     
-    
     match_data = {
-        'game_id' : game_id,
         'date' : datetime.strptime(date_str, date_format) if date_str is not None else datetime.now(timezone.utc),
         'duration' : int(request.form.get('duration')) if request.form.get('duration') is not None else None,
         'nb_players' : len(players),
@@ -302,13 +324,24 @@ def log_match():
     new_match = insert_one("matches", match_data)
     match_id = new_match.id 
 
-    # MATCH TO GAME INFO TODO
+    # MATCH TO GAME INFO
     match_to_game_data = {
         'match_id' : match_id,
-        'game_id' : game_id,
+        'game_id' : base_game_id
     }
 
-    m2g = insert_one("matches_to_games", match_to_game_data) 
+    m2g = insert_one("matches_to_games", match_to_game_data)
+    m2gs = [m2g.id]
+
+    for game_id, is_expansion, base_game_id in game_ids_is_expansion:
+        match_to_game_data = {
+            'match_id' : match_id,
+            'game_id' : game_id
+        }
+
+        m2g = insert_one("matches_to_games", match_to_game_data)
+        m2gs.append(m2g.id)
+
 
     # PLAYER TO MATCH INFO
     p2ms = []
@@ -328,7 +361,7 @@ def log_match():
     ret = {
         'message': 'Match logged successfully',
         'match_id': match_id,
-        'match_to_game_id': m2g.id,
+        'match_to_game_id': m2gs,
         'players_to_match_id_tab': p2ms,
     }
 
@@ -338,15 +371,25 @@ def log_match():
 @jwt_required()
 def get_wishlist():
     try:
-        wishlists = find_all("wishlists", {})
+        players = []
+        while True:
+            player_id = request.form.get(f"players[{index}][id]") or None
+            # Check if another player is defined, else break loop
+            if player_id is None:
+                break
+            players.append(player_id)
         
-        wishlists_data = []
+        wishlist_data = []
+        if not players:
+            wishlist = find_all("wishlists", {})
+        else:
+            for player_id in players:
+                wishlist = find_all("wishlists", {'player_id': player_id})
+                wishlist_data.extend(wishlist)
+        
+        wishlist_data = [elt.game_id for elt in wishlist]
 
-        for wishlist in wishlists:
-            wishlist['_id'] = str(wishlist['_id'])
-            wishlists_data.append(wishlist)
-
-        return jsonify(wishlists_data), 200
+        return jsonify(wishlist_data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -355,53 +398,34 @@ def get_wishlist():
 def add_wishlist():
     data = request.get_json()
     game_id = data.get('game_id')
-    notes = data.get('notes')
+    username = get_jwt_identity()
 
     if not game_id:
-        return jsonify({'error': 'Missing username or game_id'}), 400
-
-    # Check if the game is already in the wishlist
-    game = find_one("wishlists", {'game_id': game_id})
-    if game:
-        return jsonify({'error': 'Game already in the wishlist'}), 400
-    
-    username = get_jwt_identity() #FIXME: uncomment this line
-    #username = "bb"
+        return jsonify({'error': 'Missing game_id'}), 400
 
     user = find_one("players", {'username': username})
     if not user:
-        return jsonify({'error': 'User not found'}), 404
-    
-    # Get the game information from BGG API
-    bgg_api_url = f"https://www.boardgamegeek.com/xmlapi2/thing?id={game_id}"
-    response = requests.get(bgg_api_url)
+        return jsonify({'error': f"User {username} not found"}), 404
 
-    if response.status_code != 200:
-        return jsonify({'error': 'Failed to fetch game information from BGG API'}), 500
-
-    # Parse the XML response (assuming the response is in XML format)
-    import xml.etree.ElementTree as ET
-    root = ET.fromstring(response.content)
-    game = root.find('item')
-
-    # Save the game in the wishlist
-    game_data = {
-        'username': username,
+    wishlist_data = {
         'game_id': game_id,
-        'game_name': game.find('name[@type=\'primary\']').attrib['value'],
-        'min_players': game.find('minplayers').attrib['value'],
-        'max_players': game.find('maxplayers').attrib['value'],
-        'average_duration': game.find('playingtime').attrib['value'],
-        'image': {'url': game.find('image').text,
-                  'thumbnail': game.find('thumbnail').text
-                },
-        'is_cooperative': False if game.find('link[@id=\'2023\']') is None else True,
-        'notes': notes,
-        'added_at': datetime.now(),
+        'player_id': user.id
     }
-    insert_one("wishlists", game_data)
 
-    return jsonify({'message': 'Game added to the wishlist'}), 201
+    # Check if the game is already in the wishlist
+    wishlisted = find_one("wishlists", wishlist_data)
+
+    if wishlisted:
+        return jsonify({'error': f"Game already in the wishlist for {user.id}"}), 400
+    else:
+        game = find_one("games", {'id': game_id})
+
+        if not game:
+            return jsonify({'error': f"Failed to fetch game {game_id} information from Games DB"}), 500
+        else:
+            insert_one("wishlists", wishlist_data)
+
+    return jsonify({'message': f"Game {game_id} added to {user.id}'s wishlist"}), 201
 
 @data_bp.route('/removewishlist', methods=['DELETE'])
 @jwt_required()
@@ -409,19 +433,24 @@ def remove_wishlist():
     # Get the bgg id from the query string
     data = request.get_json()
     game_id = data.get('game_id')
+    username = get_jwt_identity()
 
     if not game_id:
         return jsonify({'error': 'Missing game_id'}), 400
+
+    user = find_one("players", {'username': username})
+    if not user:
+        return jsonify({'error': f"User {username} not found"}), 404
     
     # Check if the game is in the wishlist
-    game = find_one("wishlists", {'game_id': game_id})
-    if not game:
-        return jsonify({'error': 'Game not found in the wishlist'}), 404
+    wishlisted = find_one("wishlists", {'game_id': game_id, 'player_id': user.id})
+    if not wishlisted:
+        return jsonify({'error': f"Game not found in {user.id}'s wishlist"}), 404
     
     # Remove the game from the wishlist
-    delete_one("wishlists", {'game_id': game_id})
+    delete_one("wishlists", {'game_id': game_id, 'player_id': user.id})
 
-    return jsonify({'message': 'Game removed from the wishlist'}), 200
+    return jsonify({'message': f"Game removed from {user.id}'s wishlist"}), 200
 
 @auth_bp.route('/uploads/<path:filename>')
 def uploaded_file(filename):
@@ -431,66 +460,42 @@ def uploaded_file(filename):
     except Exception as e:
         return jsonify({'error': f"Failed to retrieve file: {str(e)}"}), 404
 
-@data_bp.route('/matchHistory', methods=['GET'])
+@data_bp.route('/matchhistory', methods=['GET'])
 @jwt_required()
-def matchHistory():
+def match_history():
     # Get all the matches from the database
     try:
-        matches = find_all("matches", {})
+        players = []
+        while True:
+            player_id = request.form.get(f"players[{index}][id]") or None
+            # Check if another player is defined, else break loop
+            if player_id is None:
+                break
+            players.append(player_id)
+
+        matches = []
+        if not players:
+            matches = get_match_history()
+        else:
+            matches = get_match_history_by_players(players)
 
         matches_data = []
 
         for match in matches:
-            match['_id'] = str(match['_id'])
-            if 'image' in match.keys():
-                if match['image']['type'] in ['s3']:
-                    match['image_url'] = S3Client.get_url_from_filename(match['image']['filename'])
-                elif match['image']['type'] in ['local']:
-                    filename = os.path.basename(match['image']['filename'])
-                    match['image_url'] = f"/uploads/{filename}"
+            match_data = {
+                'image_url': f"/uploads/matches/{match.image}" if match.image else None,
+                'players' : players,
+                'match' : query_result_to_dict(match),
+            }
 
-                del match['image']
-                    
             matches_data.append(match)
 
         # Sort matches by date in descending order
-        matches_data.sort(key=lambda x: (x['date'], x['_id']), reverse=True)
+        matches_data.sort(key=lambda x: (x['match']['date'], x['match']['id']), reverse=True)
 
         return jsonify(matches_data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
-@data_bp.route('/achievements', methods=['GET'])
-@jwt_required()
-def get_achievements():
-    # Get the achievements for the spiecified player, the logged user by default
-    # Get player name from query string
-    player_name = request.args.get('username')
-
-    # Check if the player name is provided otherwise use the logged user
-    if not player_name:
-        player_name = get_jwt_identity()
-
-    # Find the player in the database
-    player = find_one("players", {'username': player_name})
-    if not player:
-        return jsonify({'error': 'Player not found'}), 404
-    # Get the achievements from the player
-    achievements = player.get('achievements', [])
-
-    achievements_data = []
-
-    for achievement in achievements:
-        if achievement['image']['type'] in ['s3']:
-            achievement['image']['filename'] = S3Client.get_url_from_filename(achievement['image']['filename'])
-        elif achievement['image']['type'] in ['local']:
-            filename = os.path.basename(achievement['image']['filename'])
-            achievement['image']['filename'] = f"/uploads/{filename}"
-            
-        achievements_data.append(achievement)
-   
-    return jsonify(achievements_data), 200
 
 
 @data_bp.route('/getGamesWithRules', methods=['GET'])
@@ -1619,12 +1624,6 @@ def importGames():
     
     import_games_from_bgg(username)
     return jsonify({'message': 'Games imported successfully'}), 200
-
-@utility_bp.route('/setupAchievements', methods=['GET'])
-@jwt_required()
-def setupAchievements():
-    create_achievements()
-    return jsonify({'message': 'Achievements created successfully'}), 200
 
 rulebooks_bp = Blueprint('rulebooks', __name__)
 

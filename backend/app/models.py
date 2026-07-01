@@ -8,7 +8,7 @@ class Player(db.Model):
     username = db.Column(db.String(128), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
     email = db.Column(db.String(256), default=None)
-    image = db.Column(db.String(512), default='')
+    image = db.Column(db.String(512), default='') # URL or path to image
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     total_matches = db.Column(db.Integer, default=0)
     wins = db.Column(db.Integer, default=0)
@@ -25,21 +25,19 @@ class Game(db.Model):
     max_players = db.Column(db.Integer)
     avg_duration = db.Column(db.Integer)
     year_published = db.Column(db.String(4))  # Year of publication, stored as a string to accommodate various formats
-    image = db.Column(JSONB, default=dict)  # Store both URL and thumbnail
+    image = db.Column(db.String(512), default='') # URL or path to image
     is_cooperative = db.Column(db.Boolean, default=False)
     is_team_based = db.Column(db.Boolean, default=False)
     description = db.Column(db.String(2048))
-    belongs_to_user = db.Column(db.Integer, db.ForeignKey('players.id'), default=None)  # User ID of the possessor of the game, if applicable
-    location = db.Column(db.String(256))
     rulebook = db.Column(db.String(512))  # URL or path to the rulebook
     scoring_sheet = db.Column(db.String(512))  # URL or path to the scoring sheet
 
 class Match(db.Model):
     __tablename__ = 'matches'
     id = db.Column(db.Integer, primary_key=True)
-    game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
     date = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     duration = db.Column(db.Integer, default=None)  # Duration in minutes
+    image = db.Column(db.String(512), default='') # URL or path to image
     nb_players = db.Column(db.Integer)
     nb_teams = db.Column(db.Integer, default=0)
     winner = db.Column(db.Integer, default=None) # Either team id if nb_team > 0 or player_id
@@ -63,3 +61,15 @@ class Match_to_Game(db.Model):
     match_id = db.Column(db.Integer, db.ForeignKey('matches.id'))
     game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
 
+class Game_to_player(db.Model): # Who possesses which game
+    __tablename__ = 'game_to_player'
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'))
+    location = db.Column(db.String(256))
+
+class Wishlist(db.Model): # Who wants which game
+    __tablename__ = 'wishlist'
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'))

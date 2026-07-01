@@ -1,5 +1,5 @@
 from app import db
-from app.models import Player, Game, Match, Player_to_Match, Match_to_Game #, Wishlist, Achievement, Rulebook
+from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_player, Wishlist
 from dotenv import load_dotenv
 import os
 
@@ -20,6 +20,10 @@ def find_one(collection, query):
         return Player_to_Match.query.filter_by(**query).first()
     elif collection == "matches_to_games":
         return Match_to_Game.query.filter_by(**query).first()
+    elif collection == "games_to_players":
+        return Game_to_player.query.filter_by(**query).first()
+    elif collection == "wishlist":
+        return Wishlist.query.filter_by(**query).first()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -35,6 +39,10 @@ def find_all(collection, query):
         return Player_to_Match.query.filter_by(**query).all()
     elif collection == "matches_to_games":
         return Match_to_Game.query.filter_by(**query).all()
+    elif collection == "games_to_players":
+        return Game_to_player.query.filter_by(**query).all()
+    elif collection == "wishlist":
+        return Wishlist.query.filter_by(**query).all()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -50,6 +58,10 @@ def count_documents(collection, query):
         return Player_to_Match.query.filter_by(**query).count()
     elif collection == "matches_to_games":
         return Match_to_Game.query.filter_by(**query).count()
+    elif collection == "games_to_players":
+        return Game_to_player.query.filter_by(**query).count()
+    elif collection == "wishlist":
+        return Wishlist.query.filter_by(**query).count()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -70,6 +82,12 @@ def insert_one(collection, document):
     elif collection == "matches_to_games":
         ret = Match_to_Game(**document)
         db.session.add(ret)
+    elif collection == "games_to_players":
+        ret = Game_to_player(**document)
+        db.session.add(ret)
+    elif collection == "wishlist":
+        ret = Wishlist(**document)
+        db.session.add(ret)
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
@@ -88,6 +106,10 @@ def update_one(collection, query, update):
         ret = Player_to_Match.query.filter_by(**query).first()
     elif collection == "matches_to_games":
         ret = Match_to_Game.query.filter_by(**query).first()
+    elif collection == "games_to_players":
+        ret = Game_to_player.query.filter_by(**query).first()
+    elif collection == "wishlist":
+        ret = Wishlist.query.filter_by(**query).first()
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
@@ -119,6 +141,14 @@ def delete_one(collection, query):
         ret = Match_to_Game.query.filter_by(**query).first()
         if ret:
             db.session.delete(ret)
+    elif collection == "games_to_players":
+        ret = Game_to_player.query.filter_by(**query).first()
+        if ret:
+            db.session.delete(ret)
+    elif collection == "wishlist":
+        ret = Wishlist.query.filter_by(**query).first()
+        if ret:
+            db.session.delete(ret)
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
@@ -146,6 +176,14 @@ def delete_many(collection, query):
         rets = Match_to_Game.query.filter_by(**query).all()
         for ret in rets:
             db.session.delete(ret)
+    elif collection == "games_to_players":
+        rets = Game_to_player.query.filter_by(**query).all()
+        for ret in rets:
+            db.session.delete(ret)
+    elif collection == "wishlist":
+        rets = Wishlist.query.filter_by(**query).all()
+        for ret in rets:
+            db.session.delete(ret)
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
@@ -157,9 +195,44 @@ def query_result_to_dict(result):
         return None
     result_dict = result.__dict__.copy()
     if '_sa_instance_state' in result_dict:
-            del result_dict['_sa_instance_state']
+        del result_dict['_sa_instance_state']
     return result_dict
 
 def query_results_to_dict(results):
     """Convert a list of SQLAlchemy query results to a list of dictionaries."""
     return [query_result_to_dict(result) for result in results]
+
+def get_match_history():
+    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
+                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
+                ).join(Match, Player_to_Match.match_id==Match.id
+                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+                ).join(Game, Match_to_Game.game_id==Game.id
+                ).order_by(Match.date.desc()
+                ).group_by(Match.id
+                ).all()
+    return results
+
+def get_match_history_by_games(games):
+    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
+                ).filter(Game.id.in_(games)
+                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
+                ).join(Match, Player_to_Match.match_id==Match.id
+                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+                ).join(Game, Match_to_Game.game_id==Game.id
+                ).order_by(Match.date.desc()
+                ).group_by(Match.id
+                ).all()
+    return results
+
+def get_match_history_by_players(players):
+    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
+                ).filter(Player.id.in_(players)
+                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
+                ).join(Match, Player_to_Match.match_id==Match.id
+                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+                ).join(Game, Match_to_Game.game_id==Game.id
+                ).order_by(Match.date.desc()
+                ).group_by(Match.id
+                ).all()
+    return results
