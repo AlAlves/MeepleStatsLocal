@@ -73,7 +73,7 @@ def bgg_thing():
 
 auth_bp = Blueprint('auth', __name__)
 
-@auth_bp.route('/check-auth', methods=['GET'])
+@auth_bp.route('/checkAuth', methods=['GET'])
 def check_auth():
     jwt_storage = os.getenv('JWT_STORAGE', 'cookie')
     
@@ -238,7 +238,7 @@ def get_players():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@data_bp.route('/logmatch', methods=['POST'])
+@data_bp.route('/logMatch', methods=['POST'])
 @jwt_required()
 def log_match():
     # PARSE GAME DATA (multiple if extensions)
@@ -393,7 +393,7 @@ def get_wishlist():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@data_bp.route('/addwishlist', methods=['POST'])
+@data_bp.route('/addWishlist', methods=['POST'])
 @jwt_required()
 def add_wishlist():
     data = request.get_json()
@@ -427,7 +427,7 @@ def add_wishlist():
 
     return jsonify({'message': f"Game {game_id} added to {user.id}'s wishlist"}), 201
 
-@data_bp.route('/removewishlist', methods=['DELETE'])
+@data_bp.route('/removeWishlist', methods=['DELETE'])
 @jwt_required()
 def remove_wishlist():
     # Get the bgg id from the query string
@@ -460,7 +460,7 @@ def uploaded_file(filename):
     except Exception as e:
         return jsonify({'error': f"Failed to retrieve file: {str(e)}"}), 404
 
-@data_bp.route('/matchhistory', methods=['GET'])
+@data_bp.route('/matchHistory', methods=['GET'])
 @jwt_required()
 def match_history():
     # Get all the matches from the database
@@ -603,55 +603,13 @@ def totHours():
 
     try:
         # Find matches in the date range
-        pipeline = [
-            {
-                '$addFields': {
-                    'date_obj': {
-                        '$dateFromString': {
-                            'dateString': '$date',
-                            'format': '%Y-%m-%d'
-                        }
-                    }
-                }
-            },
-            {
-                '$match': {
-                    'date_obj': {
-                        '$gte': start_date,
-                        '$lte': end_date
-                    }
-                }
-            },
-            {
-                '$group': {
-                    '_id': None,
-                    'total_hours': {
-                        '$sum': {
-                            '$toInt': '$game_duration'  # Convert string to integer before summing
-                        }
-                    }
-                }
-            },
-            {
-                '$project': {
-                    '_id': 0,
-                    'total_hours': {  # Divide total minutes by 60 to get hours
-                        '$divide': ['$total_hours', 60]
-                    }
-                }
-            }
-        ]
-
-        # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
-        result = list(matches_collection.aggregate(pipeline))
-        result = find_all("matches", {"date": {"$gte": start_date, "$lte": end_date}})  # Use the find_all function to execute the aggregation pipeline
-
+        result = find_all("matches", {"date": {"$gte": start_date, "$lte": end_date}})
 
         if result:
-            total_hours = round(result[0]['total_hours'], 2)
+            total_duration = sum(match.duration for match in result if match.duration is not None)
+            total_hours = round(total_duration / 60, 2)
         else:
             total_hours = 0
-
 
         return jsonify({
             "type": "number",
@@ -665,73 +623,45 @@ def totHours():
 @statistic_bp.route('/totMatches', methods=['GET'])
 @jwt_required()
 def totMatches():
-    
-        # Get date filters from query string
-        start_date_str = request.args.get('start_date')
-        end_date_str = request.args.get('end_date')
-    
-        # Check if the date filters are provided and validate them
-        if start_date_str:
-            try:
-                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-            except ValueError:
-                return jsonify({'error': 'Invalid start_date format. Use YYYY-MM-DD'}), 400
-        else:
-            start_date = datetime(1970, 1, 1) # Default start date
-        if end_date_str:
-            try:
-                end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-            except ValueError:
-                return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
-        else:
-            end_date = datetime.now()
-        
+    # Get date filters from query string
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    # Check if the date filters are provided and validate them
+    if start_date_str:
         try:
-            # Find matches in the date range
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'error': 'Invalid start_date format. Use YYYY-MM-DD'}), 400
+    else:
+        start_date = datetime(1970, 1, 1) # Default start date
 
-            pipeline = [
-                {
-                    '$addFields': {
-                        'date_obj': {
-                            '$dateFromString': {
-                                'dateString': '$date',
-                                'format': '%Y-%m-%d'
-                            }
-                        }
-                    }
-                },
-                {
-                    '$match': {
-                        'date_obj': {
-                            '$gte': start_date,
-                            '$lte': end_date
-                        }
-                    }
-                }
-            ]
-
-            #result = list(matches_collection.aggregate(pipeline))
-            # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
-
-            total_matches = len(list(matches_collection.aggregate(pipeline)))
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
+    else:
+        end_date = datetime.now()
     
-            
-    
-            return jsonify({
-                "type": "number",
-                "value": total_matches,
-                "unit": "matches",
-                "description": "Total matches played between " + start_date.strftime('%Y-%m-%d') + " and " + end_date.strftime('%Y-%m-%d')
-            }), 200
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
+    try:
+        # Find matches in the date range
+        matches = find_all("matches", {"date": {"$gte": start_date, "$lte": end_date}})
+        total_matches = len(matches)
+
+        return jsonify({
+            "type": "number",
+            "value": total_matches,
+            "unit": "matches",
+            "description": "Total matches played between " + start_date.strftime('%Y-%m-%d') + " and " + end_date.strftime('%Y-%m-%d')
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
         
 ### PLAYER STATS ###
-
 @statistic_bp.route('/playerWins', methods=['GET'])
 @jwt_required()
 def playerWins():
-        
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')

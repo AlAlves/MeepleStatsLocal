@@ -4,7 +4,7 @@ from flask import jsonify
 
 from app import create_app, db
 from app.services.db import find_all, find_one, insert_one, delete_one, update_one, query_result_to_dict, query_results_to_dict
-from app.models import Match, Player, Player_to_Match
+from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_player, Wishlist
 
 app = create_app()
 
@@ -37,6 +37,7 @@ with app.app_context():
 
 
     players = find_all("players", {})
+    print(f"len(players) = {len(players)}")
     for player in players:
         print(f"Player ID: {player.id}, Username: {player.username}, Email: {player.email}")
         print(f"Player result: {player}")
@@ -109,14 +110,11 @@ with app.app_context():
         'min_players': 2,
         'max_players': 4,
         'avg_duration': 60,
-        'image': {'url': 'https://example.com/azul.jpg',
-                'thumbnail': 'https://example.com/azul_thumbnail.jpg'
-                },
+        'year_published': '',
+        'image': 'azul.jpg',
         'is_cooperative': False,
         'is_team_based': False,
         'description': 'Azul is a tile-placement game.',
-        'belongs_to_user': 1,
-        'location': None,
         'rulebook': None,
         'scoring_sheet': None
     }
@@ -126,3 +124,23 @@ with app.app_context():
         print(f"insert game : {ins}")
     else:
         print(f"Game with bgg_id '1' is : {query_result_to_dict(find_one('games', {'bgg_id': '1'}))}")
+
+    # results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
+    #     ).filter(Player.username == "Alxr"
+    #     ).join(Player_to_Match, Player.id==Player_to_Match.player_id
+    #     ).filter(Player_to_Match.win == True
+    #     ).join(Match, Player_to_Match.match_id==Match.id
+    #     ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+    #     ).join(Game, Match_to_Game.game_id==Game.id
+    #     ).order_by(Match.date.desc()
+    #     ).group_by(Match.id
+    #     ).all()
+    
+    results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
+        ).join(Match, Player_to_Match.match_id==Match.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).filter(Player.username=="Alxr", Player_to_Match.win==True
+        ).all()
+
+    print(f"Results : {results}")
