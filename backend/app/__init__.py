@@ -1,8 +1,9 @@
 # app/__init__.py
-from flask import Flask, Response, request
+from flask import Flask, Blueprint, Response, request, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
+from flask_autodoc.autodoc import Autodoc
 from datetime import timedelta
 from dotenv import load_dotenv, find_dotenv
 import os
@@ -61,6 +62,34 @@ def create_app():
     #         res.headers['Access-Control-Allow-Credentials'] = 'true'
     #         return res
 
+    # Documentation
+    auto = Autodoc(app)
+
+    documentation_bp = Blueprint('documentation', __name__)
+
+    # GET API
+    @documentation_bp.route('/')
+    def index():
+        return render_template('index.html')
+
+    # POST API
+    @auto.doc()
+    @documentation_bp.route('/add', methods = ['POST'])
+    def post_data():
+        return render_template('form.html')
+
+    # GET API with path param
+    @documentation_bp.route('/gfg/<int:page>')
+    @auto.doc()
+    def gfg(page):
+        return render_template('gfg.html', page=page)
+
+    # This route generates documentation in list 
+    # of rules
+    @documentation_bp.route('/documentation')
+    def documentation():
+        return str(auto.generate())
+
     # route imports
     with app.app_context():
         from .routes import auth_bp as auth_blueprint
@@ -77,6 +106,7 @@ def create_app():
         app.register_blueprint(rulebooks_blueprint)
         app.register_blueprint(scoresheets_blueprint)
         app.register_blueprint(bgg_blueprint)
+        app.register_blueprint(documentation_bp)
     
 
     return app

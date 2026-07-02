@@ -140,6 +140,7 @@ with app.app_context():
         ).join(Match, Player_to_Match.match_id==Match.id
         ).join(Match_to_Game, Match.id==Match_to_Game.match_id
         ).join(Game, Match_to_Game.game_id==Game.id
+        ).group_by(Match.id
         ).filter(Player.username=="Alxr", Player_to_Match.win==True
         ).all()
 

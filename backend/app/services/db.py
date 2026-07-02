@@ -1,5 +1,3 @@
-from ntpath import join
-
 from app import db
 from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_player, Wishlist
 from dotenv import load_dotenv
@@ -204,40 +202,30 @@ def query_results_to_dict(results):
     """Convert a list of SQLAlchemy query results to a list of dictionaries."""
     return [query_result_to_dict(result) for result in results]
 
-# TODO JOINING QUERIES TO BE REDONE
 def get_match_history():
-    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
-                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
-                ).join(Match, Player_to_Match.match_id==Match.id
-                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-                ).join(Game, Match_to_Game.game_id==Game.id
-                ).order_by(Match.date.desc()
-                ).group_by(Match.id
-                ).all()
+    results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
+        ).join(Match, Player_to_Match.match_id==Match.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).all()
     return results
 
 def get_match_history_by_games(games):
-    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
-                ).filter(Game.id.in_(games)
-                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
-                ).join(Match, Player_to_Match.match_id==Match.id
-                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-                ).join(Game, Match_to_Game.game_id==Game.id
-                ).order_by(Match.date.desc()
-                ).group_by(Match.id
-                ).all()
+    results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
+        ).join(Match, Player_to_Match.match_id==Match.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).filter(Game.id.in_(games)
+        ).all()
     return results
 
 def get_match_history_by_players(players):
-    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
-                ).filter(Player.id.in_(players)
-                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
-                ).join(Match, Player_to_Match.match_id==Match.id
-                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-                ).join(Game, Match_to_Game.game_id==Game.id
-                ).order_by(Match.date.desc()
-                ).group_by(Match.id
-                ).all()
+    results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
+        ).join(Match, Player_to_Match.match_id==Match.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).filter(Player.id.in_(players)
+        ).all()
     return results
 
 def get_wins_per_player(username):
