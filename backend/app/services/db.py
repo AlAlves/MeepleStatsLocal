@@ -1,5 +1,3 @@
-from ntpath import join
-
 from app import db
 from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_Player
 from dotenv import load_dotenv
@@ -208,7 +206,6 @@ def query_result_to_dict(result):
 def query_results_to_dict(results):
     """Convert a list of SQLAlchemy query results to a list of dictionaries."""
     return [query_result_to_dict(result) for result in results]
-
 
 def get_match_history(match_query):
     results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
