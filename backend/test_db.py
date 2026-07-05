@@ -4,7 +4,7 @@ from flask import jsonify
 
 from app import create_app, db
 from app.services.db import find_all, find_one, insert_one, delete_one, update_one, query_result_to_dict, query_results_to_dict
-from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_player, Wishlist
+from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_Player
 
 app = create_app()
 
@@ -125,6 +125,21 @@ with app.app_context():
     else:
         print(f"Game with bgg_id '1' is : {query_result_to_dict(find_one('games', {'bgg_id': '1'}))}")
 
+    game_to_player_data = {
+        'game_id': find_one("games", {'bgg_id': '1'}).id,
+        'player_id': find_one("players", {'username': 'Alxr'}).id,
+        'favorite': True,
+        'wishlisted': False,
+        'owned': True,
+        'location': 'Shelf A'
+    }
+
+    if find_one("games_to_players", {'game_id': game_to_player_data['game_id']}) is None:
+        ins = insert_one("games_to_players", game_to_player_data)
+        print(f"insert game_to_player : {ins}")
+    else:
+        print(f"Game to player entry already exists for game ID {game_to_player_data['game_id']} and player ID {game_to_player_data['player_id']}")
+
     # results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
     #     ).filter(Player.username == "Alxr"
     #     ).join(Player_to_Match, Player.id==Player_to_Match.player_id
@@ -136,6 +151,14 @@ with app.app_context():
     #     ).group_by(Match.id
     #     ).all()
     
+    results = Player.query.join(Game_to_Player, Player.id==Game_to_Player.player_id
+        ).join(Game, Game_to_Player.game_id==Game.id
+        ).filter(Player.username=="Alxr"
+        ).group_by(Player.id
+        ).all()
+
+    print(f"Results game to player : {query_results_to_dict(results)}")
+
     results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
         ).join(Match, Player_to_Match.match_id==Match.id
         ).join(Match_to_Game, Match.id==Match_to_Game.match_id
@@ -143,4 +166,4 @@ with app.app_context():
         ).filter(Player.username=="Alxr", Player_to_Match.win==True
         ).all()
 
-    print(f"Results : {results}")
+    print(f"Results matches : {results}")

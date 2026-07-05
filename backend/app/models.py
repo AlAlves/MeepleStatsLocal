@@ -14,12 +14,14 @@ class Player(db.Model):
     wins = db.Column(db.Integer, default=0)
     winstreak = db.Column(db.Integer, default=0)
     longest_winstreak = db.Column(db.Integer, default=0)
+    p2m = db.relationship("Player_to_Match", cascade="all, delete")
+    g2p = db.relationship("Game_to_Player", cascade="all, delete")
 
 class Game(db.Model):
     __tablename__ = 'games'
     id = db.Column(db.Integer, primary_key=True)
     bgg_id = db.Column(db.Integer, default=None)
-    name = db.Column(db.String(512))
+    name = db.Column(db.String(512), unique=True, nullable=False)
     base_game_id = db.Column(db.Integer, default=None)  # For expansions, store the base game ID, None for base games
     min_players = db.Column(db.Integer)
     max_players = db.Column(db.Integer)
@@ -31,6 +33,8 @@ class Game(db.Model):
     description = db.Column(db.String(2048))
     rulebook = db.Column(db.String(512))  # URL or path to the rulebook
     scoring_sheet = db.Column(db.String(512))  # URL or path to the scoring sheet
+    m2g = db.relationship("Match_to_Game", cascade="all, delete")
+    g2p = db.relationship("Game_to_Player", cascade="all, delete")
 
 class Match(db.Model):
     __tablename__ = 'matches'
@@ -45,9 +49,11 @@ class Match(db.Model):
     is_cooperative = db.Column(db.Boolean, default=False)
     is_over = db.Column(db.Boolean, default=True) # Indicates if the match is over or still ongoing
     note = db.Column(db.String(1024))
+    p2m = db.relationship("Player_to_Match", cascade="all, delete")
+    m2g = db.relationship("Match_to_Game", cascade="all, delete")
 
 class Player_to_Match(db.Model):
-    __tablename__ = 'player_to_match'
+    __tablename__ = 'players_to_matches'
     id = db.Column(db.Integer, primary_key=True)
     player_id = db.Column(db.Integer, db.ForeignKey('players.id'))
     match_id = db.Column(db.Integer, db.ForeignKey('matches.id'))
@@ -56,20 +62,18 @@ class Player_to_Match(db.Model):
     win = db.Column(db.Boolean, default=False)
 
 class Match_to_Game(db.Model):
-    __tablename__ = 'match_to_game'
+    __tablename__ = 'matches_to_games'
     id = db.Column(db.Integer, primary_key=True)
     match_id = db.Column(db.Integer, db.ForeignKey('matches.id'))
     game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
 
-class Game_to_player(db.Model): # Who possesses which game
-    __tablename__ = 'game_to_player'
+class Game_to_Player(db.Model): # Who possesses which game
+    __tablename__ = 'games_to_players'
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
     player_id = db.Column(db.Integer, db.ForeignKey('players.id'))
+    favorite = db.Column(db.Boolean, default=False)
+    wishlisted = db.Column(db.Boolean, default=False)
+    owned = db.Column(db.Boolean, default=False)
     location = db.Column(db.String(256))
 
-class Wishlist(db.Model): # Who wants which game
-    __tablename__ = 'wishlist'
-    id = db.Column(db.Integer, primary_key=True)
-    game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
-    player_id = db.Column(db.Integer, db.ForeignKey('players.id'))

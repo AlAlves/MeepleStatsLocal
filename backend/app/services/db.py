@@ -1,7 +1,7 @@
 from ntpath import join
 
 from app import db
-from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_player, Wishlist
+from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_Player
 from dotenv import load_dotenv
 import os
 
@@ -23,9 +23,7 @@ def find_one(collection, query):
     elif collection == "matches_to_games":
         return Match_to_Game.query.filter_by(**query).first()
     elif collection == "games_to_players":
-        return Game_to_player.query.filter_by(**query).first()
-    elif collection == "wishlist":
-        return Wishlist.query.filter_by(**query).first()
+        return Game_to_Player.query.filter_by(**query).first()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -42,9 +40,7 @@ def find_all(collection, query):
     elif collection == "matches_to_games":
         return Match_to_Game.query.filter_by(**query).all()
     elif collection == "games_to_players":
-        return Game_to_player.query.filter_by(**query).all()
-    elif collection == "wishlist":
-        return Wishlist.query.filter_by(**query).all()
+        return Game_to_Player.query.filter_by(**query).all()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -61,9 +57,7 @@ def count_documents(collection, query):
     elif collection == "matches_to_games":
         return Match_to_Game.query.filter_by(**query).count()
     elif collection == "games_to_players":
-        return Game_to_player.query.filter_by(**query).count()
-    elif collection == "wishlist":
-        return Wishlist.query.filter_by(**query).count()
+        return Game_to_Player.query.filter_by(**query).count()
     else:
         raise ValueError(f"Unknown collection: {collection}")
 
@@ -85,10 +79,7 @@ def insert_one(collection, document):
         ret = Match_to_Game(**document)
         db.session.add(ret)
     elif collection == "games_to_players":
-        ret = Game_to_player(**document)
-        db.session.add(ret)
-    elif collection == "wishlist":
-        ret = Wishlist(**document)
+        ret = Game_to_Player(**document)
         db.session.add(ret)
     else:
         raise ValueError(f"Unknown collection: {collection}")
@@ -109,9 +100,7 @@ def update_one(collection, query, update):
     elif collection == "matches_to_games":
         ret = Match_to_Game.query.filter_by(**query).first()
     elif collection == "games_to_players":
-        ret = Game_to_player.query.filter_by(**query).first()
-    elif collection == "wishlist":
-        ret = Wishlist.query.filter_by(**query).first()
+        ret = Game_to_Player.query.filter_by(**query).first()
     else:
         raise ValueError(f"Unknown collection: {collection}")
     
@@ -126,14 +115,26 @@ def delete_one(collection, query):
     if collection == "players":
         ret = Player.query.filter_by(**query).first()
         if ret:
+            sub = Player_to_Match.query.filter_by(player_id=ret.id).all()
+            sub.extend(Game_to_Player.query.filter_by(player_id=ret.id).all())
+            for s in sub:
+                db.session.delete(s)
             db.session.delete(ret)
     elif collection == "games":
         ret = Game.query.filter_by(**query).first()
         if ret:
+            sub = Game_to_Player.query.filter_by(game_id=ret.id).all()
+            sub.extend(Match_to_Game.query.filter_by(game_id=ret.id).all())
+            for s in sub:
+                db.session.delete(s)
             db.session.delete(ret)
     elif collection == "matches":
         ret = Match.query.filter_by(**query).first()
         if ret:
+            sub = Player_to_Match.query.filter_by(match_id=ret.id).all()
+            sub.extend(Match_to_Game.query.filter_by(match_id=ret.id).all())
+            for s in sub:
+                db.session.delete(s)
             db.session.delete(ret)
     elif collection == "players_to_matches":
         ret = Player_to_Match.query.filter_by(**query).first()
@@ -144,11 +145,7 @@ def delete_one(collection, query):
         if ret:
             db.session.delete(ret)
     elif collection == "games_to_players":
-        ret = Game_to_player.query.filter_by(**query).first()
-        if ret:
-            db.session.delete(ret)
-    elif collection == "wishlist":
-        ret = Wishlist.query.filter_by(**query).first()
+        ret = Game_to_Player.query.filter_by(**query).first()
         if ret:
             db.session.delete(ret)
     else:
@@ -161,14 +158,26 @@ def delete_many(collection, query):
     if collection == "players":
         rets = Player.query.filter_by(**query).all()
         for ret in rets:
+            sub = Player_to_Match.query.filter_by(player_id=ret.id).all()
+            sub.extend(Game_to_Player.query.filter_by(player_id=ret.id).all())
+            for s in sub:
+                db.session.delete(s)
             db.session.delete(ret)
     elif collection == "games":
         rets = Game.query.filter_by(**query).all()
         for ret in rets:
+            sub = Game_to_Player.query.filter_by(game_id=ret.id).all()
+            sub.extend(Match_to_Game.query.filter_by(game_id=ret.id).all())
+            for s in sub:
+                db.session.delete(s)
             db.session.delete(ret)
     elif collection == "matches":
         rets = Match.query.filter_by(**query).all()
         for ret in rets:
+            sub = Player_to_Match.query.filter_by(match_id=ret.id).all()
+            sub.extend(Match_to_Game.query.filter_by(match_id=ret.id).all())
+            for s in sub:
+                db.session.delete(s)
             db.session.delete(ret)
     elif collection == "players_to_matches":
         rets = Player_to_Match.query.filter_by(**query).all()
@@ -179,11 +188,7 @@ def delete_many(collection, query):
         for ret in rets:
             db.session.delete(ret)
     elif collection == "games_to_players":
-        rets = Game_to_player.query.filter_by(**query).all()
-        for ret in rets:
-            db.session.delete(ret)
-    elif collection == "wishlist":
-        rets = Wishlist.query.filter_by(**query).all()
+        rets = Game_to_Player.query.filter_by(**query).all()
         for ret in rets:
             db.session.delete(ret)
     else:
@@ -204,51 +209,59 @@ def query_results_to_dict(results):
     """Convert a list of SQLAlchemy query results to a list of dictionaries."""
     return [query_result_to_dict(result) for result in results]
 
-# TODO JOINING QUERIES TO BE REDONE
-def get_match_history():
-    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
-                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
-                ).join(Match, Player_to_Match.match_id==Match.id
-                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-                ).join(Game, Match_to_Game.game_id==Game.id
-                ).order_by(Match.date.desc()
-                ).group_by(Match.id
-                ).all()
+
+def get_match_history(match_query):
+    results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
+        ).join(Player, Player_to_Match.player_id==Player.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).filter(**match_query
+        ).group_by(Match.id
+        ).all()
     return results
 
-def get_match_history_by_games(games):
-    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
-                ).filter(Game.id.in_(games)
-                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
-                ).join(Match, Player_to_Match.match_id==Match.id
-                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-                ).join(Game, Match_to_Game.game_id==Game.id
-                ).order_by(Match.date.desc()
-                ).group_by(Match.id
-                ).all()
+def get_match_history_by_games(games, match_query):
+    results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
+        ).join(Player, Player_to_Match.player_id==Player.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).filter(Game.id.in_(games)
+        ).filter(**match_query
+        ).order_by(Match.date.desc()
+        ).group_by(Match.id
+        ).all()
     return results
 
-def get_match_history_by_players(players):
-    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
-                ).filter(Player.id.in_(players)
-                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
-                ).join(Match, Player_to_Match.match_id==Match.id
-                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-                ).join(Game, Match_to_Game.game_id==Game.id
-                ).order_by(Match.date.desc()
-                ).group_by(Match.id
-                ).all()
+def get_match_history_by_players(players, match_query):
+    results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
+        ).join(Player, Player_to_Match.player_id==Player.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).filter(Player.id.in_(players)
+        ).filter(**match_query
+        ).order_by(Match.date.desc()
+        ).group_by(Match.id
+        ).all()
     return results
 
-def get_wins_per_player(username):
-    results = db.session.query(Player, Match, Player_to_Match, Game, Match_to_Game
-                ).filter(Player.username == username
-                ).join(Player_to_Match, Player.id==Player_to_Match.player_id
-                ).filter(Player_to_Match.win == True
-                ).join(Match, Player_to_Match.match_id==Match.id
-                ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-                ).join(Game, Match_to_Game.game_id==Game.id
-                ).order_by(Match.date.desc()
-                ).group_by(Match.id
-                ).all()
+def get_match_history_by_players_and_games(players, games, match_query):
+    results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
+        ).join(Player, Player_to_Match.player_id==Player.id
+        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+        ).join(Game, Match_to_Game.game_id==Game.id
+        ).filter(Player.id.in_(players)
+        ).filter(Game.id.in_(games)
+        ).filter(**match_query
+        ).order_by(Match.date.desc()
+        ).group_by(Match.id
+        ).all()
+    return results
+
+def get_wins_per_player(username, player_query):
+    results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
+        ).filter(Player.username == username
+        ).filter(Player_to_Match.win == True
+        ).filter(**player_query
+        ).group_by(Player.id
+        ).all()
     return results

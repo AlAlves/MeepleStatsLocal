@@ -13,7 +13,7 @@ import json
 
 from app import db
 from .models import Player, Game, Match
-from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict, get_match_history, get_match_history_by_games, get_match_history_by_players
+from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict, get_match_history, get_match_history_by_games, get_match_history_by_players, get_match_history_by_players_and_games
 from .services.bgg_import import import_games_from_bgg
 
 from .services.rag import query_llm, query_index, display_search_results, initialize_pinecone, create_safe_namespace, index_single_pdf, clear_namespace
@@ -465,6 +465,7 @@ def uploaded_file(filename):
 def match_history():
     # Get all the matches from the database
     try:
+        index = 0
         players = []
         while True:
             player_id = request.form.get(f"players[{index}][id]") or None
@@ -472,6 +473,7 @@ def match_history():
             if player_id is None:
                 break
             players.append(player_id)
+            index += 1
 
         matches = []
         if not players:
@@ -488,7 +490,7 @@ def match_history():
                 'match' : query_result_to_dict(match),
             }
 
-            matches_data.append(match)
+            matches_data.append(match_data)
 
         # Sort matches by date in descending order
         matches_data.sort(key=lambda x: (x['match']['date'], x['match']['id']), reverse=True)
@@ -560,7 +562,7 @@ def addGame():
             'max_players': data.get('max_players'),
             'avg_duration': data.get('avg_duration'),
             'year_published': data.get('year_published'),
-            'image': {'url': data.get('image_url'), 'thumbnail': data.get('image_thumbnail')},
+            'image': data.get('image_url'),
             'is_cooperative': data.get('is_cooperative', False),
             'is_team_based': data.get('is_team_based', False),
             'description': data.get('description'),
@@ -580,7 +582,6 @@ def addGame():
 @statistic_bp.route('/totHours', methods=['GET'])
 @jwt_required()
 def totHours():
-
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -600,13 +601,47 @@ def totHours():
             return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
     else:
         end_date = datetime.now()
+    
+    date_query = {
+        "date": {"$gte": start_date, "$lte": end_date}
+        }
+
+    # Get players
+    index = 0
+    players = []
+    while True:
+        player_id = request.form.get(f"players[{index}][id]") or None
+        # Check if another player is defined, else break loop
+        if player_id is None:
+            break
+        players.append(player_id)
+        index += 1
+
+    # Get games
+    index = 0
+    games = []
+    while True:
+        game_id = request.form.get(f"games[{index}][id]") or None
+        # Check if another game is defined, else break loop
+        if game_id is None:
+            break
+        games.append(game_id)
+        index += 1
 
     try:
-        # Find matches in the date range
-        result = find_all("matches", {"date": {"$gte": start_date, "$lte": end_date}})
-
-        if result:
-            total_duration = sum(match.duration for match in result if match.duration is not None)
+        if players:
+            if games:
+                results = get_match_history_by_players_and_games(players, games, date_query)
+            else:
+                results = get_match_history_by_players(players, date_query)
+        else:
+            if games:
+                results = get_match_history_by_games(games, date_query)
+            else:
+                results = get_match_history(date_query)
+        
+        if results:
+            total_duration = sum(match.duration for match in results if match.duration is not None)
             total_hours = round(total_duration / 60, 2)
         else:
             total_hours = 0
@@ -644,10 +679,46 @@ def totMatches():
     else:
         end_date = datetime.now()
     
+    date_query = {
+        "date": {"$gte": start_date, "$lte": end_date}
+        }
+
+    # Get players
+    index = 0
+    players = []
+    while True:
+        player_id = request.form.get(f"players[{index}][id]") or None
+        # Check if another player is defined, else break loop
+        if player_id is None:
+            break
+        players.append(player_id)
+        index += 1
+
+    # Get games
+    index = 0
+    games = []
+    while True:
+        game_id = request.form.get(f"games[{index}][id]") or None
+        # Check if another game is defined, else break loop
+        if game_id is None:
+            break
+        games.append(game_id)
+        index += 1
+    
     try:
+        if players:
+            if games:
+                results = get_match_history_by_players_and_games(players, games, date_query)
+            else:
+                results = get_match_history_by_players(players, date_query)
+        else:
+            if games:
+                results = get_match_history_by_games(games, date_query)
+            else:
+                results = get_match_history(date_query)
+        
         # Find matches in the date range
-        matches = find_all("matches", {"date": {"$gte": start_date, "$lte": end_date}})
-        total_matches = len(matches)
+        total_matches = len(results) if results else 0
 
         return jsonify({
             "type": "number",
@@ -684,6 +755,8 @@ def playerWins():
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
         except ValueError:
             return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
+
+    
 
     player = find_one("players", {'username': player_name})
     if start_date_str is None and end_date_str is None:
