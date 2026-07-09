@@ -254,9 +254,10 @@ def get_match_history_by_players_and_games(players, games, match_query):
         ).all()
     return results
 
-def get_wins_per_player(username, player_query):
-    results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
-        ).filter(Player.username == username
+def get_wins_per_player(players, match_query):
+    results = 
+        Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
+        ).filter(Player.id.in_(players)
         ).filter(Player_to_Match.win == True
         ).filter(**player_query
         ).group_by(Player.id

@@ -13,7 +13,7 @@ import json
 
 from app import db
 from .models import Player, Game, Match
-from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict, get_match_history, get_match_history_by_games, get_match_history_by_players, get_match_history_by_players_and_games
+from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict, get_match_history, get_match_history_by_games, get_match_history_by_players, get_match_history_by_players_and_games, get_wins_per_player
 from .services.bgg_import import import_games_from_bgg
 
 from .services.rag import query_llm, query_index, display_search_results, initialize_pinecone, create_safe_namespace, index_single_pdf, clear_namespace
@@ -740,10 +740,23 @@ def playerWins():
     # Get player name from query string
     player_name = request.args.get('username')
 
+    # Get players
+    index = 0
+    players = []
+    while True:
+        player_id = request.form.get(f"players[{index}][id]") or None
+        # Check if another player is defined, else break loop
+        if player_id is None:
+            break
+        players.append(player_id)
+        index += 1
+
     # Check if the player name is provided otherwise use the logged user
-    if not player_name:
-        player_name = get_jwt_identity()
-    
+    if not players:
+        username = get_jwt_identity()
+        player = find_one("players", {'username': username})
+        players.append(player.id)
+
     # Check if the date filters are provided and validate them
     if start_date_str:
         try:
@@ -755,11 +768,13 @@ def playerWins():
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
         except ValueError:
             return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
-
+    
     
 
-    player = find_one("players", {'username': player_name})
     if start_date_str is None and end_date_str is None:
+        # TODO
+        results = get_wins_per_player(players, date_query)
+
         # Read from player's collection
         return jsonify({
             "type": "number",
@@ -774,6 +789,10 @@ def playerWins():
             start_date = datetime(1970, 1, 1)
         if end_date_str is None:
             end_date = datetime.now()
+        
+        date_query = {
+            "date": {"$gte": start_date, "$lte": end_date}
+            }
 
         # Find matches in the date range from the player's collection where the player is the winner
         pipeline = [
