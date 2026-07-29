@@ -15,3 +15,7 @@ documentation for details.
    :maxdepth: 2
    :caption: Contents:
 
+MeepleStats ROUTES of the API:
+
+.. automodule:: routes
+   :members:

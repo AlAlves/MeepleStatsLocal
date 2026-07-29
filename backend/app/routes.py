@@ -1,6 +1,5 @@
 from datetime import datetime, time, timedelta, timezone
-import traceback
-from dotenv import find_dotenv, load_dotenv
+
 from flask import Blueprint, Response, jsonify, render_template, request, send_from_directory
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, decode_token
 from jwt.exceptions import InvalidTokenError
@@ -11,16 +10,11 @@ from flask import current_app
 import requests
 import json
 
-from app import db
-from .models import Player, Game, Match
-from .services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict, get_match_history, get_match_history_by_games, get_match_history_by_players, get_match_history_by_players_and_games, get_wins_per_player
-from .services.bgg_import import import_games_from_bgg
+from app.services.db import find_one, find_all, insert_one, update_one, delete_one, query_result_to_dict, query_results_to_dict, get_match_history, get_match_history_by_games, get_match_history_by_players, get_match_history_by_players_and_games, get_wins_per_player
+from app.services.bgg_import import import_games_from_bgg
 
-from .services.rag import query_llm, query_index, display_search_results, initialize_pinecone, create_safe_namespace, index_single_pdf, clear_namespace
+from app.services.rag import query_llm, query_index, display_search_results, initialize_pinecone, create_safe_namespace, index_single_pdf, clear_namespace
 
-
-#embedding_model = initialize_embedding_model()
-#index = initialize_pinecone()
 
 if os.getenv('ENABLE_RAG') == 'True':
     index, embedding_provider = initialize_pinecone()
@@ -28,6 +22,7 @@ if os.getenv('ENABLE_RAG') == 'True':
 STORAGE_TYPE = os.getenv('STORAGE_TYPE') #'local'
 BGG_API_KEY = os.getenv('BGG_API_KEY')
 
+# TO BE REMOVED
 upload_folder = None
 
 if STORAGE_TYPE in ['local']:
@@ -43,7 +38,20 @@ if STORAGE_TYPE in ['local']:
 
 bgg_bp = Blueprint('bgg', __name__)
 
-def _bgg_get(url, params = None):
+def bgg_get(url, params = None):
+    """
+    Fetch data from the BoardGameGeek API.
+
+    Args:
+        url (str): 
+            The API endpoint URL.
+        params (dict, optional):
+            Query parameters for the API request.
+
+    Returns:
+        Response: The API response.
+
+    """
     headers = {}
     if BGG_API_KEY:
         headers["Authorization"] = f"Bearer {BGG_API_KEY}"
@@ -55,16 +63,36 @@ def _bgg_get(url, params = None):
 
 @bgg_bp.route('/bgg/search', methods=['GET'])
 def bgg_search():
+    """Search boardgames from the BoardGameGeek API.
+
+    Request: GET
+        query (str):
+            The search query.
+
+    Returns:
+        Response: The API response.
+
+    """
     # Get the original query string from the parameters
     query = request.args.get('query', '')
-    resp = _bgg_get('https://boardgamegeek.com/xmlapi2/search', params={'query': query})
+    resp = bgg_get('https://boardgamegeek.com/xmlapi2/search', params={'query': query})
     return Response(resp.content, status=resp.status_code, content_type=resp.headers.get("Content-Type"))
 
 @bgg_bp.route('/bgg/thing', methods=['GET'])
 def bgg_thing():
+    """Fetch details for a specific boardgame from the BoardGameGeek API.
+
+    Request: GET
+        id (str):
+            The ID of the boardgame to fetch.
+
+    Returns:
+        Response: The API response.
+
+    """
     # Get the object ID
     object_id = request.args.get('id', '')
-    resp = _bgg_get(f'https://boardgamegeek.com/xmlapi2/thing', params={'id': object_id})
+    resp = bgg_get(f'https://boardgamegeek.com/xmlapi2/thing', params={'id': object_id})
     return Response(resp.content, status=resp.status_code, content_type=resp.headers.get("Content-Type"))
 
 # ---------------------
@@ -73,8 +101,17 @@ def bgg_thing():
 
 auth_bp = Blueprint('auth', __name__)
 
-@auth_bp.route('/checkAuth', methods=['GET'])
+@auth_bp.route('/check_auth', methods=['GET'])
 def check_auth():
+    """Check the authentication status of the user.
+
+    Request: GET
+
+    Returns: 
+        JSON:
+            "authenticated": bool
+
+    """
     jwt_storage = os.getenv('JWT_STORAGE', 'cookie')
     
     token = None
@@ -94,10 +131,27 @@ def check_auth():
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
+    """Register a new user.
+
+    Request: POST
+        username (str):
+            The username for the new user.
+        password (str):
+            The password for the new user.
+        email (str):
+            The email address for the new user.
+
+    Returns: 
+        JSON:
+            'message': str, 
+            'jwt_token': access_token
+
+    """
+
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    email = data.get('mail')
+    email = data.get('email')
 
     if not username or not password:
         return jsonify({'error': 'Missing username or password'}), 400
@@ -141,6 +195,21 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    """Login an existing user.
+
+    Request: POST
+        username (str):
+            The username for the existing user.
+        password (str):
+            The password for the existing user.
+
+    Returns: 
+        JSON:
+            'message': str, 
+            'jwt_token': access_token
+
+    """
+
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -180,9 +249,21 @@ def logout():
 
 data_bp = Blueprint('games', __name__)
 
-@data_bp.route('/games', methods=['GET'])
+@data_bp.route('/get_games', methods=['GET'])
 @jwt_required()
 def get_games():
+    """Get all boardgames.
+
+    Request: GET
+
+    Returns: 
+        JSON: 
+            'games': list[dict<Model.Game>]
+            or
+            'error': str
+
+    """
+
     try:
         games = find_all("games", {})
         games_data = query_results_to_dict(games)
@@ -191,34 +272,48 @@ def get_games():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-@data_bp.route('/updateGames', methods=['POST'])
+@data_bp.route('/update_games', methods=['POST'])
 @jwt_required()
 def update_games():
-    data = request.get_json()
+    """Update existing boardgames.
+
+    Request: POST
+        game_id (int): The ID of the game to update.
+        other game attributes (optionnal): See models
+
+    Returns:
+        JSON:
+            'message' (str)
+            or 'error' (str)
+
+    """
 
     game_data = {
-        'bgg_id': data.get('bgg_id'),
-        'name': data.get('name'),
-        'base_game_id': data.get('base_game_id'),
-        'min_players': data.get('min_players'),
-        'max_players': data.get('max_players'),
-        'avg_duration': data.get('avg_duration'),
-        'year_published': data.get('year_published'),
-        'image': {'url': data.get('image_url'), 'thumbnail': data.get('image_thumbnail')},
-        'is_cooperative': data.get('is_cooperative', False),
-        'is_team_based': data.get('is_team_based', False),
-        'description': data.get('description'),
-        'belongs_to_user': data.get('belongs_to_user'),
-        'location': data.get('location'),
-        'rulebook': data.get('rulebook'),
-        'scoring_sheet': data.get('scoring_sheet')
+        'bgg_id': request.form.get('bgg_id'),
+        'name': request.form.get('name'),
+        'base_game_id': request.form.get('base_game_id'),
+        'min_players': request.form.get('min_players'),
+        'max_players': request.form.get('max_players'),
+        'avg_duration': request.form.get('avg_duration'),
+        'year_published': request.form.get('year_published'),
+        'image': {'url': request.form.get('image_url'), 'thumbnail': request.form.get('image_thumbnail')},
+        'is_cooperative': request.form.get('is_cooperative', False),
+        'is_team_based': request.form.get('is_team_based', False),
+        'description': request.form.get('description'),
+        'belongs_to_user': request.form.get('belongs_to_user'),
+        'location': request.form.get('location'),
+        'rulebook': request.form.get('rulebook'),
+        'scoring_sheet': request.form.get('scoring_sheet')
     }
 
-    game_id = data.get('game_id')
+    game_data_filtered = {k: v for k, v in game_data.items() if v is not None}
+
+
+    game_id = request.form.get('game_id')
 
     if game_id:
         # Update the game in the database
-        res = update_one("games", {'id': game_id}, game_data)
+        res = update_one("games", {'id': game_id}, game_data_filtered)
         if res:
             return jsonify({'message': 'Game updated successfully'}), 200
         else:
@@ -227,9 +322,19 @@ def update_games():
     return jsonify({'error': 'Input not valid'}), 400
 
 
-
-@data_bp.route('/players', methods=['GET'])
+@data_bp.route('/get_players', methods=['GET'])
 def get_players():
+    """Get all players.
+
+    Request: GET
+
+    Returns:
+        JSON: 
+            'players' (list[dict<Model.Player>])
+            or
+            'error' (str)
+
+    """
     try:
         players = find_all("players", {})
         players_data = query_results_to_dict(players)
@@ -238,12 +343,37 @@ def get_players():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@data_bp.route('/logMatch', methods=['POST'])
+@data_bp.route('/add_match', methods=['POST'])
 @jwt_required()
-def log_match():
+def add_match():
+    """Log a match.
+
+    Request: POST
+        games (list[dict]): List of games in the match (count expansions) with id (int)
+        is_cooperative (bool): true if game is coop
+        is_coop_win (bool): true if coop game was a win for players
+        is_team_based (bool): true if the game is team based
+        players (list[dict]): List of players in the match with score (int), username (str) and team (int, optionnal)
+        date (str, optionnal): date of the match
+        duration (str, optionnal): duration of the game
+        is_over (str, optionnal): true if the game is over
+        note (str, optionnal): optionnal notes
+
+    Returns:
+        JSON: Either response or error description containing
+            'message' (str)
+            'match_id' (int)
+            'match_to_game_id' (int)
+            'players_to_match_id_tab' (int)
+            or
+            'error' (str)
+
+    """
+
     # PARSE GAME DATA (multiple if extensions)
     game_ids_is_expansion = [] # list of tuple (id, bool, id) with id_of_game, is_expansion, id_of_base_game (if expansion, else None)
     main_game_id = None
+    index = 0
     while True:
         game_id = request.form.get(f'games[{index}][id]') or None
         if game_id is None:
@@ -253,6 +383,7 @@ def log_match():
             return jsonify({'error': f"Game {game_id} not found"}), 404
         game_id_is_expansion = (game_id, game.base_game_id is not None, game.base_game_id)
         game_ids_is_expansion.append(game_id_is_expansion)
+        index += 1
 
     is_cooperative = request.form.get(f'is_cooperative')
     is_team_based = request.form.get(f'is_team_based')
@@ -367,17 +498,32 @@ def log_match():
 
     return jsonify(ret), 201
 
-@data_bp.route('/wishlist', methods=['GET'])
+@data_bp.route('/get_wishlists', methods=['GET'])
 @jwt_required()
-def get_wishlist():
+def get_wishlists(): # TODO
+    """Get wishlist from players.
+
+    Request: GET
+        players: list[dict] (optionnal)
+            List of players to get wishlist from else take all
+            id: int
+            username: str
+            team: int (optionnal)
+
+    Returns:
+        JSON: 'games_id' as list[int] or 'error' as str
+
+    """
     try:
         players = []
+        index = 0
         while True:
-            player_id = request.form.get(f"players[{index}][id]") or None
+            player_id = request.args.get(f"players[{index}][id]")
             # Check if another player is defined, else break loop
             if player_id is None:
                 break
             players.append(player_id)
+            index += 1
         
         wishlist_data = []
         if not players:
@@ -389,13 +535,27 @@ def get_wishlist():
         
         wishlist_data = [elt.game_id for elt in wishlist]
 
-        return jsonify(wishlist_data), 200
+        return jsonify({'games_id': wishlist_data}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@data_bp.route('/addWishlist', methods=['POST'])
+@data_bp.route('/add_wishlist', methods=['POST'])
 @jwt_required()
 def add_wishlist():
+    """Add games to player's wishlist.
+
+    Request: POST
+        players: list[dict] (optionnal)
+            List of players to get wishlist from else take all
+            id: int
+            username: str
+            team: int (optionnal)
+
+    Returns: JSON
+        JSON: 'games_id' as list[int] or 'error' as str
+
+    """
+
     data = request.get_json()
     game_id = data.get('game_id')
     username = get_jwt_identity()
@@ -427,9 +587,23 @@ def add_wishlist():
 
     return jsonify({'message': f"Game {game_id} added to {user.id}'s wishlist"}), 201
 
-@data_bp.route('/removeWishlist', methods=['DELETE'])
+@data_bp.route('/remove_wishlist', methods=['DELETE'])
 @jwt_required()
 def remove_wishlist():
+    """Remove elements from player's wishlist.
+
+    Request: GET
+        players: list[dict] (optionnal)
+            List of players to get wishlist from else take all
+            id (int), username (str), team (int, optionnal)
+
+    Returns: JSON
+        JSON: 
+            'games_id': list[int]
+            or
+            'error': str
+
+        """
     # Get the bgg id from the query string
     data = request.get_json()
     game_id = data.get('game_id')
@@ -453,16 +627,24 @@ def remove_wishlist():
     return jsonify({'message': f"Game removed from {user.id}'s wishlist"}), 200
 
 @auth_bp.route('/uploads/<path:filename>')
-def uploaded_file(filename):
+def get_uploaded_file(filename):
+    """Load a stored file.
+
+    Args:
+        filename (str): name of file to load.
+
+    Returns:
+        json: error
+    """
     try:
         # Send the file from the upload folder
         return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
     except Exception as e:
         return jsonify({'error': f"Failed to retrieve file: {str(e)}"}), 404
 
-@data_bp.route('/matchHistory', methods=['GET'])
+@data_bp.route('/get_matches', methods=['GET'])
 @jwt_required()
-def match_history():
+def get_matches():
     # Get all the matches from the database
     try:
         index = 0
@@ -500,7 +682,7 @@ def match_history():
         return jsonify({'error': str(e)}), 500
 
 
-@data_bp.route('/getGamesWithRules', methods=['GET'])
+@data_bp.route('/get_games_with_rules', methods=['GET'])
 @jwt_required()
 def getGamesWithRules():
 
@@ -513,9 +695,9 @@ def getGamesWithRules():
 
 statistic_bp = Blueprint('statistic', __name__)
 
-@data_bp.route('/addGame', methods=['POST'])
+@data_bp.route('/add_game', methods=['POST'])
 @jwt_required()
-def addGame():
+def add_game():
     data = request.get_json()
     bgg_id = data.get('bgg_id')
     bgg_search = data.get('bgg_search')
@@ -579,9 +761,9 @@ def addGame():
 
 ### GLOBAL STATS ###
 
-@statistic_bp.route('/totHours', methods=['GET'])
+@statistic_bp.route('/get_total_hours', methods=['GET'])
 @jwt_required()
-def totHours():
+def get_total_hours():
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -655,9 +837,9 @@ def totHours():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@statistic_bp.route('/totMatches', methods=['GET'])
+@statistic_bp.route('/get_total_matches', methods=['GET'])
 @jwt_required()
-def totMatches():
+def get_total_matches():
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -730,9 +912,9 @@ def totMatches():
         return jsonify({'error': str(e)}), 500
         
 ### PLAYER STATS ###
-@statistic_bp.route('/playerWins', methods=['GET'])
+@statistic_bp.route('/get_players_wins', methods=['GET'])
 @jwt_required()
-def playerWins():
+def get_players_wins():
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -858,9 +1040,9 @@ def playerWins():
         }), 200
                 
 
-@statistic_bp.route('/playerWinRate', methods=['GET'])
+@statistic_bp.route('/get_players_winrate', methods=['GET'])
 @jwt_required()
-def playerWinRate():
+def get_players_winrate():
 
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
@@ -998,9 +1180,9 @@ def playerWinRate():
                 "description": "Winrate of player " + player_name + " between " + start_date.strftime('%Y-%m-%d') + " and " + end_date.strftime('%Y-%m-%d')
             }), 200
 
-@statistic_bp.route('/playerLongWinstreak', methods=['GET'])
+@statistic_bp.route('/get_players_longest_winstreak', methods=['GET'])
 @jwt_required()
-def playerLongWinstreak():
+def get_players_longest_winstreak():
 
     # Get player name from query string
     player_name = request.args.get('username')
@@ -1018,138 +1200,14 @@ def playerLongWinstreak():
         "description": "Longest win streak of player " + player_name
     }), 200
 
-@statistic_bp.route('/playerHighestWinRate', methods=['GET'])
+@statistic_bp.route('/get_players_games_wins', methods=['GET'])
 @jwt_required()
-def playerHighestWinRate():
-        
-    # Get month and year from query string
-    month = request.args.get('month')
-    year = request.args.get('year')
+def get_players_games_wins():
+    """TODO: Get nb of win per game for a set of players.
 
-    # Check if the month and year are provided and validate them
-    if month:
-        try:
-            month = int(month)
-        except ValueError:
-            return jsonify({'error': 'Invalid month format. Use an integer'}), 400
-    if year:
-        try:
-            year = int(year)
-        except ValueError:
-            return jsonify({'error': 'Invalid year format. Use an integer'}), 400
-    else:
-        year = datetime.now().year
-    
-    if month is not None and (month < 1 or month > 12):
-        return jsonify({'error': 'Invalid month. Use a number between 1 and 12'}), 400
-    
-    if year < 1970 or year > datetime.now().year:
-        return jsonify({'error': 'Invalid year. Use a number between 1970 and the current year'}), 400
-    
-    # Calculate the player with the highest win rate in a specific month and year from player collection
-
-    # Find matches in the date range from the player's collection
-
-    pipeline = [
-        # 1. Unwind the matches array
-        {
-            "$unwind": "$matches"
-        },
-        # 2. Add a field for the converted date object
-        {
-            "$addFields": {
-                "matches.match_date_obj": {
-                    "$dateFromString": {
-                        "dateString": "$matches.date", # Convert the string date field
-                        "format": "%Y-%m-%d",
-                        "onError": None, # Handle conversion errors
-                        "onNull": None   # Handle null dates
-                    }
-                }
-            }
-        },
-        # 3. Filter matches by month and year
-        {
-            "$match": {
-                # Ensure the date conversion was successful
-                "matches.match_date_obj": {"$ne": None},
-                # Apply year and month filters using $expr
-                "$expr": {
-                    "$and": [
-                        # Compare the year of the converted date object
-                        {"$eq": [{"$year": "$matches.match_date_obj"}, year]},
-                        # Conditionally compare the month if 'month' is provided
-                        {"$cond": {
-                            "if": {"$ne": [month, None]},
-                            "then": {"$eq": [{"$month": "$matches.match_date_obj"}, month]},
-                            "else": True # If month is None, this condition is always true
-                        }}
-                    ]
-                }
-            }
-        },
-        # 4. Group by username
-        {
-            "$group": {
-                "_id": "$username",
-                "total_matches": {"$sum": 1},
-                "total_wins": {"$sum": {"$cond": [{"$eq": ["$matches.is_winner", True]}, 1, 0]}}
-            }
-        },
-        # 5. Calculate the winrate
-        {
-            "$project": {
-                "username": "$_id",
-                "total_matches": 1,
-                "total_wins": 1,
-                "winrate": {
-                    "$cond": [
-                        {"$gt": ["$total_matches", 0]},
-                        {"$multiply": [{"$divide": ["$total_wins", "$total_matches"]}, 100]},
-                        0
-                    ]
-                }
-            }
-        },
-        # 6. Sort by winrate in descending order
-        {
-            "$sort": {
-                "winrate": -1
-            }
-        },
-        # 7. Limit to the first result
-        {
-            "$limit": 1
-        }
-    ]
-
-    # TODO: Use the find_all function to execute the aggregation pipeline instead of directly using the collection
-    result = list(players_collection.aggregate(pipeline))
-
-    if result:
-        return jsonify({
-            "type": "percentage",
-            "value": result[0]['winrate'],
-            "unit": "%",
-            "description": "Player with the highest winrate in " + str(month) + "/" + str(year) + ": " + result[0]['username'],
-            "deatils": {
-                "username": result[0]['username'],
-                "total_matches": result[0]['total_matches'],
-                "total_wins": result[0]['total_wins']
-            }
-        }), 200
-    else:
-        return jsonify({
-            "type": "percentage",
-            "value": 0,
-            "unit": "%",
-            "description": "No matches found for the specified month and year.",
-            "deatils": {}
-        }), 200
-
-@statistic_bp.route('/playerGameWins', methods=['GET'])
-@jwt_required()
-def playerGameWins():
+    Returns:
+        JSON: user, game, nb_win
+    """
 
     # Get player name from query string
     player_name = request.args.get('username')
@@ -1225,9 +1283,9 @@ def playerGameWins():
     
 ### GAME STATS ###
 
-@statistic_bp.route('/gameCoopWinRate', methods=['GET'])
+@statistic_bp.route('/get_game_coop_winrate', methods=['GET'])
 @jwt_required()
-def gameCoopWinRate():
+def get_game_coop_winrate():
 
     # This route return the winrate of cooperative games for all the coop games in the collection if no game_id is provided
     
@@ -1344,9 +1402,9 @@ def gameCoopWinRate():
             "description": "No cooperative games found"
         }), 200
 
-@statistic_bp.route('/gameNumMatch', methods=['GET'])
+@statistic_bp.route('/get_game_nb_matches', methods=['GET'])
 @jwt_required()
-def gameNumMatch():    
+def get_game_nb_matches():    
         # Calculate the number of matches for a specific game from game collection
     
         pipeline = [
@@ -1407,9 +1465,9 @@ def gameNumMatch():
                 "description": "No matches found",
             }), 200
         
-@statistic_bp.route('/gameAvgDuration', methods=['GET'])
+@statistic_bp.route('/get_games_avg_duration', methods=['GET'])
 @jwt_required()
-def gameAvgDuration():
+def get_games_avg_duration():
 
     # Get game from query string
     game_name = request.args.get('game_name')
@@ -1491,9 +1549,14 @@ def gameAvgDuration():
         }), 200
 
 
-@statistic_bp.route('/gameBestValue', methods=['GET'])
+@statistic_bp.route('/get_game_best_value', methods=['GET'])
 @jwt_required()
-def gameBestValue():
+def get_game_best_value():
+    """TODO: Get top `x` games with the best price/tot_hours_played ratio
+
+    Returns:
+        JSON: _description_
+    """
 
     # Get top 3 games with the best price/tot_hours_played ratio
 
@@ -1561,9 +1624,9 @@ def gameBestValue():
             "description": "No games found"
         }), 200
     
-@statistic_bp.route('/gameHighestScore', methods=['GET'])
+@statistic_bp.route('/get_games_highest_score', methods=['GET'])
 @jwt_required()
-def gameHighestScore():
+def get_games_highest_score():
     # Get the game name from query string
     game_name = request.args.get('game_name')
 
@@ -1597,9 +1660,9 @@ def gameHighestScore():
         }
     }), 200
 
-@statistic_bp.route('/gameAvgScore', methods=['GET'])
+@statistic_bp.route('/get_games_avg_score', methods=['GET'])
 @jwt_required()
-def gameAvgScore():
+def get_games_avg_score():
 
     # Get the game name from query string
     game_name = request.args.get('game_name')
@@ -1632,9 +1695,9 @@ def gameAvgScore():
 
 utility_bp = Blueprint('utils', __name__)
 
-@utility_bp.route('/importGames', methods=['GET'])
+@utility_bp.route('/import_games', methods=['GET'])
 @jwt_required()
-def importGames():
+def import_games():
     # Import games from BGG API using the bgg_import.py
 
     # Get the username from the .env file
@@ -1649,7 +1712,7 @@ def importGames():
 
 rulebooks_bp = Blueprint('rulebooks', __name__)
 
-@rulebooks_bp.route('/rulebooks', methods=['GET'])
+@rulebooks_bp.route('/get_rulebooks', methods=['GET'])
 @jwt_required()
 def get_rulebooks():
     try:
@@ -1665,7 +1728,7 @@ def get_rulebooks():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@rulebooks_bp.route('/upload-rulebook', methods=['POST'])
+@rulebooks_bp.route('/upload_rulebook', methods=['POST'])
 @jwt_required()
 def upload_rulebook():
     try:
@@ -1788,9 +1851,9 @@ def get_rulebook(rulebook_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@rulebooks_bp.route('/rulebook-chat', methods=['POST'])
+@rulebooks_bp.route('/ask_rulebook', methods=['POST'])
 @jwt_required()
-def rulebook_chat():
+def ask_rulebook():
     try:
         # Get current user
         current_user = get_jwt_identity()
@@ -1920,11 +1983,11 @@ def rulebook_chat():
             'message': 'An error occurred while processing your request'
         }), 500
     
-scoresheets_bp = Blueprint('scoreSheet', __name__)
+scoresheets_bp = Blueprint('scoresheets', __name__)
 
-@scoresheets_bp.route('/scoreSheets', methods=['GET'])
+@scoresheets_bp.route('/get_scoresheets', methods=['GET'])
 @jwt_required()
-def get_score_sheets():
+def get_scoresheets():
     try:
 
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1941,9 +2004,9 @@ def get_score_sheets():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@scoresheets_bp.route('/scoreSheet/<sheet_name>', methods=['GET'])
+@scoresheets_bp.route('/scoresheets/<sheet_name>', methods=['GET'])
 @jwt_required()
-def get_score_sheet(sheet_name):
+def get_scoresheet(sheet_name):
     try:
 
         filename = f"{sheet_name}_score_sheet.json"
@@ -1960,9 +2023,9 @@ def get_score_sheet(sheet_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-@scoresheets_bp.route('/upload-scoreSheet', methods=['POST'])
+@scoresheets_bp.route('/upload_scoresheet', methods=['POST'])
 @jwt_required()
-def upload_score_sheet():
+def upload_scoresheet():
     try:
         data = request.get_json()
 

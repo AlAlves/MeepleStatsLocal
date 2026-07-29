@@ -29,6 +29,9 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+    if os.getenv('STORAGE_TYPE', 'local') == 'local':
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
     db.init_app(app)
     jwt = JWTManager(app)
 
@@ -71,13 +74,13 @@ def create_app():
 
     # route imports
     with app.app_context():
-        from .routes import auth_bp as auth_blueprint
-        from .routes import data_bp as data_blueprint
-        from .routes import statistic_bp as statistic_blueprint
-        from .routes import utility_bp as utility_blueprint
-        from .routes import rulebooks_bp as rulebooks_blueprint
-        from .routes import scoresheets_bp as scoresheets_blueprint
-        from .routes import bgg_bp as bgg_blueprint
+        from app.routes import auth_bp as auth_blueprint
+        from app.routes import data_bp as data_blueprint
+        from app.routes import statistic_bp as statistic_blueprint
+        from app.routes import utility_bp as utility_blueprint
+        from app.routes import rulebooks_bp as rulebooks_blueprint
+        from app.routes import scoresheets_bp as scoresheets_blueprint
+        from app.routes import bgg_bp as bgg_blueprint
         app.register_blueprint(auth_blueprint)
         app.register_blueprint(data_blueprint)
         app.register_blueprint(statistic_blueprint)

@@ -1,24 +1,40 @@
 # Add the project root to the Python path
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parents[2]
+sys.path.insert(0, str(BASE_DIR))
+sys.path.insert(0, str(BASE_DIR / 'app'))
+
+from app import create_app
+
+app = create_app()
+
+ctx = app.app_context()
+ctx.push()
 
 # Extensions
 extensions = [
-    'sphinx.ext.viewcode',
+    'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'autoapi.extension'
+    'sphinx.ext.viewcode',
 ]
-# AutoAPI settings
-autoapi_type = 'python'
-autoapi_dirs = ['../../app']
-autoapi_options = [
-    'members',
-    'undoc-members',
-    'show-inheritance',
-    'show-module-summary'
-]
-autoapi_template_dir = "_templates/autoapi"
+
+# autodoc2_package = [
+#     str(BASE_DIR / 'app'),
+# ]
+
+# # AutoAPI settings
+# autoapi_type = 'python'
+# autoapi_dirs = [str(BASE_DIR / 'app')]
+# autoapi_options = [
+#     'members',
+#     'undoc-members',
+#     'show-inheritance',
+#     'show-module-summary'
+# ]
+# autoapi_template_dir = "_templates/autoapi"
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -34,8 +50,6 @@ author = 'Alex'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
-extensions = []
 
 templates_path = ['_templates']
 exclude_patterns = []
