@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Game, Player, StaticResponse, StatisticCardInterface } from "../model/Interfaces";
+import { Game, Player, StatisticResponse, StatisticCardInterface } from "../model/Interfaces";
 import { fetchStatistics } from "../api/statisticApi";
 import { Badge, Card, Group, Loader, Paper, RingProgress, Select, Stack, Text, TextInput, useMantineColorScheme } from "@mantine/core";
 import { DateInput, DateValue, MonthPickerInput, YearPickerInput } from "@mantine/dates";
@@ -13,7 +13,7 @@ const StatisticCard = ({ endpoint, title, filters }: StatisticCardInterface) => 
   const { colorScheme } = useMantineColorScheme();
   const isDarkMode = colorScheme === "dark";
 
-  const [data, setData] = useState<StaticResponse | null>(null);
+  const [data, setData] = useState<StatisticResponse | null>(null);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,7 @@ const StatisticCard = ({ endpoint, title, filters }: StatisticCardInterface) => 
       };
     }
 
-    fetch(`${API_URL}/games`, requestOptions)
+    fetch(`${API_URL}/get_games`, requestOptions)
       .then((response) => response.json())
       .then((data: Game[]) => {
         const sortedGames = data.sort((a, b) => a.name.localeCompare(b.name));
@@ -47,7 +47,7 @@ const StatisticCard = ({ endpoint, title, filters }: StatisticCardInterface) => 
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/players`)
+    fetch(`${API_URL}/get_players`)
       .then((response) => response.json())
       .then((data: Player[]) => {
         const sortedPlayers = data.sort((a, b) =>

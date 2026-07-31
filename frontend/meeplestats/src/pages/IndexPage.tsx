@@ -37,7 +37,7 @@ export default function IndexPage() {
       };
     }
 
-    fetch(`${API_URL}/players`, requestOptions)
+    fetch(`${API_URL}/get_players`, requestOptions)
       .then((response) => response.json())
       .then((data: Player[]) => {
         setPlayers(data);
@@ -74,7 +74,7 @@ export default function IndexPage() {
       <div className={`!mb-6 !p-4 !rounded-lg !border ${isDarkMode ? "!bg-gray-700 !border-gray-600" : "!bg-gray-50 !border-gray-100"}`}>
         <Group justify="space-between" align="center" className="!flex-wrap">
           <Title order={2} className={`!mb-0 !font-semibold !text-xl ${isDarkMode ? "!text-gray-100" : "!text-gray-800"}`}>
-            {t("AchievementsTitlePage", { defaultValue: "Achievements" })}
+            {t("StatisticsTitlePage", { defaultValue: "Statistics" })}
           </Title>
 
           <Group>
@@ -102,7 +102,7 @@ export default function IndexPage() {
               onClick={() => setSelectedUsername(null)}
               className={`!transition-colors ${isDarkMode ? "!bg-gray-700 !text-gray-200 hover:!bg-gray-600" : "!bg-blue-50 !text-blue-600 hover:!bg-blue-100"}`}
             >
-              My Achievements
+              {t("MyStats", { defaultValue: "My Stats" })}
             </Button>
           </Group>
         </Group>

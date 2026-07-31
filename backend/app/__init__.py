@@ -1,11 +1,13 @@
 # app/__init__.py
-from flask import Flask, Blueprint, Response, request, render_template
+from flask import Flask, Blueprint
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from datetime import timedelta
 from dotenv import load_dotenv, find_dotenv
 import os
+
+from app.services.rag import initialize_pinecone
 
 db = SQLAlchemy()
 
@@ -31,6 +33,9 @@ def create_app():
 
     if os.getenv('STORAGE_TYPE', 'local') == 'local':
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+    if os.getenv('ENABLE_RAG') == 'True':
+        app.config['PINECONE_INDEX'], app.config['PINECONE_PROVIDER'] = initialize_pinecone()
 
     db.init_app(app)
     jwt = JWTManager(app)
@@ -69,25 +74,28 @@ def create_app():
 
     @documentation_bp.route('/documentation')
     @documentation_bp.route('/documentation/<path:path>')
-    def serve_sphinx_docs(path='index.html'):
+    def serve_sphinx_docs(path='docs/build/html/index.html'):
         return app.send_static_file(path)
 
     # route imports
     with app.app_context():
-        from app.routes import auth_bp as auth_blueprint
-        from app.routes import data_bp as data_blueprint
-        from app.routes import statistic_bp as statistic_blueprint
-        from app.routes import utility_bp as utility_blueprint
-        from app.routes import rulebooks_bp as rulebooks_blueprint
-        from app.routes import scoresheets_bp as scoresheets_blueprint
-        from app.routes import bgg_bp as bgg_blueprint
+        from app.routes.routes_auth import auth_bp as auth_blueprint
+        from app.routes.routes_players import players_bp as players_blueprint
+        from app.routes.routes_games import games_bp as games_blueprint
+        from app.routes.routes_matches import matches_bp as matches_blueprint
+        from app.routes.routes_bgg import bgg_bp as bgg_blueprint
+        from app.routes.routes_statistics import statistic_bp as statistic_blueprint
+        from app.routes.routes_rulebook import rulebooks_bp as rulebooks_blueprint
+        from app.routes.routes_scoresheet import scoresheets_bp as scoresheets_blueprint
+        
         app.register_blueprint(auth_blueprint)
-        app.register_blueprint(data_blueprint)
+        app.register_blueprint(players_blueprint)
+        app.register_blueprint(games_blueprint)
+        app.register_blueprint(matches_blueprint)
+        app.register_blueprint(bgg_blueprint)
         app.register_blueprint(statistic_blueprint)
-        app.register_blueprint(utility_blueprint)
         app.register_blueprint(rulebooks_blueprint)
         app.register_blueprint(scoresheets_blueprint)
-        app.register_blueprint(bgg_blueprint)
         app.register_blueprint(documentation_bp)
     
 

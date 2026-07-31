@@ -6,6 +6,8 @@ from app import create_app, db
 from app.services.db import find_all, find_one, insert_one, delete_one, update_one, query_result_to_dict, query_results_to_dict
 from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_Player
 
+from werkzeug.security import generate_password_hash, check_password_hash
+
 app = create_app()
 
 with app.app_context():
@@ -20,7 +22,7 @@ with app.app_context():
 
     pl = {
         'username': 'Alxr',
-        'password': hash('azerty'),
+        'password': generate_password_hash('azer'),
         'email': None,
         'image': '',
         # 'created_at' : '',
@@ -159,8 +161,9 @@ with app.app_context():
 
     print(f"Results game to player : {query_results_to_dict(results)}")
 
-    results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
-        ).join(Match, Player_to_Match.match_id==Match.id
+    # TODO
+    results = Match.query.join(Match, Player_to_Match.match_id==Match.id
+        ).join(Player_to_Match, Player.id==Player_to_Match.player_id
         ).join(Match_to_Game, Match.id==Match_to_Game.match_id
         ).join(Game, Match_to_Game.game_id==Game.id
         ).group_by(Match.id

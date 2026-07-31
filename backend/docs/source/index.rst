@@ -15,7 +15,13 @@ documentation for details.
    :maxdepth: 2
    :caption: Contents:
 
-MeepleStats ROUTES of the API:
+   api/database
+   api/routes_auth
+   api/routes_bgg
+   api/routes_games
+   api/routes_matches
+   api/routes_players
+   api/routes_rulebook
+   api/routes_scoresheet
+   api/routes_statistics
 
-.. automodule:: routes
-   :members:

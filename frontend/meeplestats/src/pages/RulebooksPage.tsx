@@ -44,7 +44,7 @@ const RulebooksPage = () => {
           };
         }
 
-        const response = await fetch(`${API_URL}/games`, requestOptions);
+        const response = await fetch(`${API_URL}/get_games`, requestOptions);
         const data: Game[] = await response.json();
         const sortedGames = data.sort((a, b) => a.name.localeCompare(b.name));
         setGames(sortedGames);

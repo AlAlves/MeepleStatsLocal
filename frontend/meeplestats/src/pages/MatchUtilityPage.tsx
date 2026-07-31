@@ -44,7 +44,7 @@ const MatchUtilityPage = () => {
       };
     }
 
-    fetch(`${API_URL}/games`, requestOptions)
+    fetch(`${API_URL}/get_games`, requestOptions)
       .then((response) => response.json())
       .then((data: Game[]) => {
         const sortedGames = data.sort((a, b) => a.name.localeCompare(b.name));

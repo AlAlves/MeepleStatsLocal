@@ -78,24 +78,13 @@ export interface WishListCardInterface {
   onDelete?: () => void;
 }
 
-export interface StaticResponse {
+export interface StatisticResponse {
   title: string;
   type: 'number' | 'percentage' | 'list' | 'comparison';
   value: number | object | Array<unknown>;
   unit?: string;
   description?: string;
 }
-
-// export interface AchievementsResponse {
-//   achievement_id: string;
-//   unlocked_at: Date;
-//   level?: string;
-//   image: {
-//     type: string;
-//     filename: string;
-//   }
-//   description: string;
-// }
 
 export interface RulebookInterface {
   _id: string;

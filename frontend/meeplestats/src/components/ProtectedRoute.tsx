@@ -24,7 +24,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
           };
         }
 
-        const response = await fetch(`${API_URL}/check-auth`, requestOptions);
+        const response = await fetch(`${API_URL}/check_auth`, requestOptions);
 
         const data = await response.json();
         setIsAuthenticated(data.authenticated);

@@ -57,7 +57,7 @@ const GameCard = ({ game }: { game: Game }) => {
 
     console.log(requestOptions.body);
 
-    const response = await fetch(`${API_URL}/updateGames`, requestOptions);
+    const response = await fetch(`${API_URL}/update_game`, requestOptions);
     if (response.ok) {
       // Notify the user that the game has been updated
       notifications.show({

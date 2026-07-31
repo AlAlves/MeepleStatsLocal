@@ -182,7 +182,7 @@ If you want to contribute, you can submit with a PR new configs to create a scor
 ### Authentication
 - `POST /register` - Register a new user
 - `POST /login` - Login a user
-- `GET /check-auth` - Check user authentication status
+- `GET /check_auth` - Check user authentication status
 
 ### Game Management
 - `GET /games` - Retrieve all games

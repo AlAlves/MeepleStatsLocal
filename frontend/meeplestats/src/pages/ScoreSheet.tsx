@@ -36,7 +36,7 @@ const ScoreSheet = () => {
             Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
           };
         }
-        const response = await fetch(`${API_URL}/scoreSheets`, requestOptions);
+        const response = await fetch(`${API_URL}/get_scoresheets`, requestOptions);
 
         const data: [] = await response.json();
         setScoreSheets(data);

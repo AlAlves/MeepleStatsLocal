@@ -58,7 +58,7 @@ const AddGame = () => {
       };
     }
 
-    fetch(`${API_URL}/games`, requestOptions)
+    fetch(`${API_URL}/get_games`, requestOptions)
       .then((response) => response.json())
       .then((data: Game[]) => {
         const sortedGames = data.sort((a, b) => a.name.localeCompare(b.name));
@@ -68,7 +68,7 @@ const AddGame = () => {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/players`)
+    fetch(`${API_URL}/get_players`)
       .then((response) => response.json())
       .then((data: Player[]) => {
         const sortedPlayers = data.sort((a, b) =>
@@ -220,7 +220,7 @@ const AddGame = () => {
 
       requestOptions.body = data;
 
-      const response = await fetch(`${API_URL}/logmatch`, requestOptions);
+      const response = await fetch(`${API_URL}/add_match`, requestOptions);
 
       if (response.ok) {
         const data = await response.json();

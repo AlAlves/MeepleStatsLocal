@@ -20,7 +20,7 @@ const AuthProvider = ({ children }: Readonly<{ children: React.ReactNode }>) => 
           };
         }
 
-        const response = await fetch(`${API_URL}/check-auth`, requestOptions);
+        const response = await fetch(`${API_URL}/check_auth`, requestOptions);
         if (response.ok) {
           setAuthStatus("LoggedIn");
         } else {

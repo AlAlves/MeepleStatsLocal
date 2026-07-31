@@ -2,10 +2,12 @@ from datetime import datetime, timezone
 from app import db
 
 class Player(db.Model):
+    """Player database"""
+    
     __tablename__ = 'players'
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(128), unique=True, nullable=False)
-    password = db.Column(db.String(256), nullable=False)
+    username = db.Column(db.String(128), unique=True, nullable=False, doc="The username of the user.")
+    password = db.Column(db.String(256), nullable=False, doc="The password of the user.")
     email = db.Column(db.String(256), default=None)
     image = db.Column(db.String(512), default='') # URL or path to image
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
@@ -13,8 +15,8 @@ class Player(db.Model):
     wins = db.Column(db.Integer, default=0)
     winstreak = db.Column(db.Integer, default=0)
     longest_winstreak = db.Column(db.Integer, default=0)
-    p2m = db.relationship("Player_to_Match", cascade="all, delete")
-    g2p = db.relationship("Game_to_Player", cascade="all, delete")
+    # p2m = db.relationship("Player_to_Match", cascade="all, delete")
+    # g2p = db.relationship("Game_to_Player", cascade="all, delete")
 
 class Game(db.Model):
     __tablename__ = 'games'
@@ -32,8 +34,8 @@ class Game(db.Model):
     description = db.Column(db.String(2048))
     rulebook = db.Column(db.String(512))  # URL or path to the rulebook
     scoring_sheet = db.Column(db.String(512))  # URL or path to the scoring sheet
-    m2g = db.relationship("Match_to_Game", cascade="all, delete")
-    g2p = db.relationship("Game_to_Player", cascade="all, delete")
+    # m2g = db.relationship("Match_to_Game", cascade="all, delete")
+    # g2p = db.relationship("Game_to_Player", cascade="all, delete")
 
 class Match(db.Model):
     __tablename__ = 'matches'
@@ -48,8 +50,8 @@ class Match(db.Model):
     is_cooperative = db.Column(db.Boolean, default=False)
     is_over = db.Column(db.Boolean, default=True) # Indicates if the match is over or still ongoing
     note = db.Column(db.String(1024))
-    p2m = db.relationship("Player_to_Match", cascade="all, delete")
-    m2g = db.relationship("Match_to_Game", cascade="all, delete")
+    # p2m = db.relationship("Player_to_Match", cascade="all, delete")
+    # m2g = db.relationship("Match_to_Game", cascade="all, delete")
 
 class Player_to_Match(db.Model):
     __tablename__ = 'players_to_matches'
@@ -59,20 +61,44 @@ class Player_to_Match(db.Model):
     team_id = db.Column(db.Integer, default=None)
     score = db.Column(db.Integer, default=0)
     win = db.Column(db.Boolean, default=False)
+    player = db.relationship("Player", 
+            backref=db.backref('players_to_matches', 
+                cascade="all, delete-orphan"),
+            lazy='joined')
+    match = db.relationship("Match", 
+                backref=db.backref('players_to_matches', 
+                    cascade="all, delete-orphan"),
+                lazy='joined')
 
 class Match_to_Game(db.Model):
     __tablename__ = 'matches_to_games'
     id = db.Column(db.Integer, primary_key=True)
-    match_id = db.Column(db.Integer, db.ForeignKey('matches.id'))
-    game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
+    match_id = db.Column(db.Integer, db.ForeignKey('matches.id'), doc="The match involving games.")
+    game_id = db.Column(db.Integer, db.ForeignKey('games.id'), doc="The game played in matches.")
+    match = db.relationship("Match", 
+                backref=db.backref('matches_to_games', 
+                    cascade="all, delete-orphan"),
+                lazy='joined')
+    game = db.relationship("Game", 
+                backref=db.backref('matches_to_games', 
+                    cascade="all, delete-orphan"),
+                lazy='joined')
 
 class Game_to_Player(db.Model): # Who possesses which game
     __tablename__ = 'games_to_players'
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey('games.id'))
-    player_id = db.Column(db.Integer, db.ForeignKey('players.id'))
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), doc="The players possessing the games.")
     favorite = db.Column(db.Boolean, default=False)
     wishlisted = db.Column(db.Boolean, default=False)
     owned = db.Column(db.Boolean, default=False)
     location = db.Column(db.String(256))
+    game = db.relationship("Game", 
+                backref=db.backref('games_to_players', 
+                    cascade="all, delete-orphan"),
+                lazy='joined')
+    player = db.relationship("Player", 
+                backref=db.backref('games_to_players', 
+                    cascade="all, delete-orphan"),
+                lazy='joined')
 

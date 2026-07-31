@@ -76,11 +76,19 @@ const RegisterForm = () => {
       localStorage.setItem(Constants.loggedIn, "true");
       setAuthStatus("LoggedIn");
       navigate("/");
+    } else if (response != null ) {
+      const data = await response.json();
+
+      notifications.show({
+        color: "red",
+        title: "Error",
+        message: `${data.error}`,
+      });
     } else {
       notifications.show({
         color: "red",
         title: "Error",
-        message: "Invalid credentials",
+        message: "Unknown error",
       });
     }
   };
@@ -109,7 +117,6 @@ const RegisterForm = () => {
           }}
         />
         <TextInput
-          // withAsterisk
           label={t("RegisterMail", { defaultValue: "Mail" })}
           key={form.key("mail")}
           {...form.getInputProps("mail")}

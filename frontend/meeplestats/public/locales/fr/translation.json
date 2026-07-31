@@ -1,6 +1,8 @@
 {
   "AchievementsTitlePage": "Achievements",
-  "Admin Actions": "Admin Actions",
+  "StatisticsTitlePage": "Statistiques",
+  "MyStats": "Mes stats",
+  "Admin Actions": "Actions administrateur",
   "Create Score Sheet": "Create Score Sheet",
   "GameAvgDurationAchTitle": "Game Average Duration",
   "GameAvgScoreAchTitle": "Game Average Score",

@@ -19,10 +19,10 @@ export default function Layout() {
   const { t, i18n } = useTranslation();
 
   const languages = [
+    { value: "fr", label: "Français" },
     { value: "en", label: "English" },
-    { value: "it", label: "Italiano" },
     { value: "de", label: "Deutsch" },
-    { value: "fr", label: "Français" }
+    { value: "it", label: "Italiano" }   
   ]
 
   const savedUsername = localStorage.getItem(Constants.username);
@@ -57,38 +57,12 @@ export default function Layout() {
         };
       }
 
-      const respose = await fetch(`${API_URL}/importGames`, requestOptions);
+      const respose = await fetch(`${API_URL}/import_games`, requestOptions);
 
       if (respose.ok) {
         console.log("Games imported");
       } else {
         console.error("Error importing games");
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  const handleAchievementsSetup = async () => {
-    try {
-      const requestOptions: RequestInit = {
-        method: "GET",
-      };
-      // Check the JWT_STORAGE value and set credentials or headers accordingly
-      if (JWT_STORAGE === "cookie") {
-        requestOptions.credentials = "include";
-      } else if (JWT_STORAGE === "localstorage") {
-        requestOptions.headers = {
-          Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
-        };
-      }
-
-      const respose = await fetch(`${API_URL}/setupAchievements`, requestOptions);
-
-      if (respose.ok) {
-        console.log("Achievements setup");
-      } else {
-        console.error("Error setting up achievements");
       }
     } catch (error) {
       console.error(error);
