@@ -15,6 +15,12 @@ statistic_bp = Blueprint('statistic', __name__)
 @statistic_bp.route('/get_total_hours', methods=['GET'])
 @jwt_required()
 def get_total_hours():
+    """Compute total nb of hours spend in game TODO
+
+    Returns:
+        _type_: _description_
+    """
+
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -36,7 +42,7 @@ def get_total_hours():
         end_date = datetime.now()
     
     date_query = {
-        "date": {"$gte": start_date, "$lte": end_date}
+        'date': {"$gte": start_date, "$lte": end_date}
         }
 
     # Get players
@@ -80,7 +86,7 @@ def get_total_hours():
             total_hours = 0
 
         return jsonify({
-            "type": "number",
+            "type": 'number',
             "value": total_hours,
             "unit": "hours",
             "description": "Total hours played between " + start_date.strftime('%Y-%m-%d') + " and " + end_date.strftime('%Y-%m-%d')
@@ -91,6 +97,12 @@ def get_total_hours():
 @statistic_bp.route('/get_total_matches', methods=['GET'])
 @jwt_required()
 def get_total_matches():
+    """Get total nb of matches TODO
+
+    Returns:
+        _type_: _description_
+    """
+
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -166,6 +178,12 @@ def get_total_matches():
 @statistic_bp.route('/get_players_wins', methods=['GET'])
 @jwt_required()
 def get_players_wins():
+    """Get win matches from set of players
+
+    Returns:
+        _type_: _description_
+    """
+
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -202,10 +220,11 @@ def get_players_wins():
         except ValueError:
             return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
     
-    
+    date_query = {
+        "date": {"$gte": start_date, "$lte": end_date}
+        }
 
     if start_date_str is None and end_date_str is None:
-        # TODO
         results = get_wins_per_player(players, date_query)
 
         # Read from player's collection
@@ -294,6 +313,11 @@ def get_players_wins():
 @statistic_bp.route('/get_players_winrate', methods=['GET'])
 @jwt_required()
 def get_players_winrate():
+    """Compute winrate from a set of players TODO
+
+    Returns:
+        _type_: _description_
+    """
 
     # Get date filters from query string
     start_date_str = request.args.get('start_date')
@@ -434,6 +458,11 @@ def get_players_winrate():
 @statistic_bp.route('/get_players_longest_winstreak', methods=['GET'])
 @jwt_required()
 def get_players_longest_winstreak():
+    """Get longest winstreak from a set of players TODO
+
+    Returns:
+        _type_: _description_
+    """
 
     # Get player name from query string
     player_name = request.args.get('username')
@@ -537,6 +566,11 @@ def get_players_games_wins():
 @statistic_bp.route('/get_game_coop_winrate', methods=['GET'])
 @jwt_required()
 def get_game_coop_winrate():
+    """Get winrate from coop games TODO
+
+    Returns:
+        _type_: _description_
+    """
 
     # This route return the winrate of cooperative games for all the coop games in the collection if no game_id is provided
     
@@ -655,70 +689,81 @@ def get_game_coop_winrate():
 
 @statistic_bp.route('/get_game_nb_matches', methods=['GET'])
 @jwt_required()
-def get_game_nb_matches():    
-        # Calculate the number of matches for a specific game from game collection
-    
-        pipeline = [
-            # 1. Unwind the matches array
-            {
-                "$unwind": "$matches"
-            },
-            # 2. Group by game_id
-            {
-                "$group": {
-                    "_id": "$bgg_id",
-                    "total_matches": {"$sum": 1}
-                }
-            },
-            # 3. Sort by total_matches in descending order
-            {
-                "$sort": {
-                    "total_matches": -1
-                }
-            }
-        ]
-    
-        result = list(games_collection.aggregate(pipeline))
-    
-        if result:
+def get_game_nb_matches():
+    """Get nb of matches for a given game TODO
 
-            # Get the games' names from the game collection
-            # TODO check most played and not bgg id ?
-            most_played = find_one("games", {"bgg_id": result[0]["_id"]})
-            least_played = find_one("games", {"bgg_id": result[-1]["_id"]})
-            
-            most_played_name = most_played["name"] if most_played else "Unknown"
-            least_played_name = least_played["name"] if least_played else "Unknown"
+    Returns:
+        _type_: _description_
+    """
         
+    # Calculate the number of matches for a specific game from game collection
 
-            return jsonify({
-                "type": "comparison",
-                "value": [
-                    {
-                        "name": most_played_name,
-                        "game_id": result[0]["_id"],
-                        "total_matches": result[0]["total_matches"],
-                        "status": "most"
-                    },
-                    {
-                        "name": least_played_name,
-                        "game_id": result[-1]["_id"],
-                        "total_matches": result[-1]["total_matches"],
-                        "status": "least"
-                    }
-                ],
-                "description": "Most and least played games",
-            }), 200
-        else:
-            return jsonify({
-                "type": "comparison",
-                "value": [],
-                "description": "No matches found",
-            }), 200
+    pipeline = [
+        # 1. Unwind the matches array
+        {
+            "$unwind": "$matches"
+        },
+        # 2. Group by game_id
+        {
+            "$group": {
+                "_id": "$bgg_id",
+                "total_matches": {"$sum": 1}
+            }
+        },
+        # 3. Sort by total_matches in descending order
+        {
+            "$sort": {
+                "total_matches": -1
+            }
+        }
+    ]
+
+    result = list(games_collection.aggregate(pipeline))
+
+    if result:
+
+        # Get the games' names from the game collection
+        # TODO check most played and not bgg id ?
+        most_played = find_one("games", {"bgg_id": result[0]["_id"]})
+        least_played = find_one("games", {"bgg_id": result[-1]["_id"]})
+        
+        most_played_name = most_played["name"] if most_played else "Unknown"
+        least_played_name = least_played["name"] if least_played else "Unknown"
+    
+
+        return jsonify({
+            "type": "comparison",
+            "value": [
+                {
+                    "name": most_played_name,
+                    "game_id": result[0]["_id"],
+                    "total_matches": result[0]["total_matches"],
+                    "status": "most"
+                },
+                {
+                    "name": least_played_name,
+                    "game_id": result[-1]["_id"],
+                    "total_matches": result[-1]["total_matches"],
+                    "status": "least"
+                }
+            ],
+            "description": "Most and least played games",
+        }), 200
+    else:
+        return jsonify({
+            "type": "comparison",
+            "value": [],
+            "description": "No matches found",
+        }), 200
         
 @statistic_bp.route('/get_games_avg_duration', methods=['GET'])
 @jwt_required()
 def get_games_avg_duration():
+    """Get average duration from a set of games TODO
+
+    Returns:
+        _type_: _description_
+    """
 
     # Get game from query string
     game_name = request.args.get('game_name')
@@ -803,7 +848,7 @@ def get_games_avg_duration():
 @statistic_bp.route('/get_game_best_value', methods=['GET'])
 @jwt_required()
 def get_game_best_value():
-    """TODO: Get top `x` games with the best price/tot_hours_played ratio
+    """Get top `x` games with the best price/tot_hours_played ratio TODO
 
     Returns:
         JSON: _description_
@@ -878,6 +923,12 @@ def get_game_best_value():
 @statistic_bp.route('/get_games_highest_score', methods=['GET'])
 @jwt_required()
 def get_games_highest_score():
+    """Get highest score from a set of games TODO
+
+    Returns:
+        _type_: _description_
+    """
+
     # Get the game name from query string
     game_name = request.args.get('game_name')
 
@@ -914,6 +965,11 @@ def get_games_highest_score():
 @statistic_bp.route('/get_games_avg_score', methods=['GET'])
 @jwt_required()
 def get_games_avg_score():
+    """Get average score from a set of games TODO
+
+    Returns:
+        _type_: _description_
+    """
 
     # Get the game name from query string
     game_name = request.args.get('game_name')

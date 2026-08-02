@@ -47,18 +47,16 @@ export default function IndexPage() {
       });
   }, []);
   const endpoints = [
-    { endpoint: "totHours", title: t("TotalHoursAchTitle", { defaultValue: "Total Hours" }), filters: [filterTypeOptions.startDate, filterTypeOptions.endDate] },
-    { endpoint: "totMatches", title: t("TotalMatchesAchTitle", { defaultValue: "Total Matches" }), filters: [filterTypeOptions.startDate, filterTypeOptions.endDate] },
-    { endpoint: "playerWins", title: t("PlayerWinsAchTitle", { defaultValue: "Player Wins" }), filters: [filterTypeOptions.player, filterTypeOptions.startDate, filterTypeOptions.endDate] },
-    { endpoint: "playerWinRate", title: t("PlayerWinRateAchTitle", { defaultValue: "Player Win Rate" }), filters: [filterTypeOptions.player, filterTypeOptions.startDate, filterTypeOptions.endDate] },
-    { endpoint: "playerHighestWinRate", title: t("PlayerHighestWinRateAchTitle", { defaultValue: "Player Highest Win Rate" }), filters: [filterTypeOptions.month, filterTypeOptions.year] },
-    { endpoint: "playerGameWins", title: t("PlayerGameWinsAchTitle", { defaultValue: "Player Game Wins" }), filters: [filterTypeOptions.player] },
-    { endpoint: "gameCoopWinRate", title: t("GameCoopWinRateAchTitle", { defaultValue: "Game Coop Win Rate" }), filters: [filterTypeOptions.game] },
-    { endpoint: "gameNumMatch", title: t("GameNumMatchAchTitle", { defaultValue: "Game Number of Matches" }) },
-    { endpoint: "gameAvgDuration", title: t("GameAvgDurationAchTitle", { defaultValue: "Game Average Duration" }) },
-    { endpoint: "gameBestValue", title: t("GameBestValueAchTitle", { defaultValue: "Game Best Value" }) },
-    { endpoint: "gameHighestScore", title: t("GameHighestScoreAchTitle", { defaultValue: "Game Highest Score" }), filters: [filterTypeOptions.game] },
-    { endpoint: "gameAvgScore", title: t("GameAvgScoreAchTitle", { defaultValue: "Game Average Score" }), filters: [filterTypeOptions.game] },
+    { endpoint: "get_total_hours", title: t("TotalHoursAchTitle", { defaultValue: "Total Hours" }), filters: [filterTypeOptions.startDate, filterTypeOptions.endDate] },
+    { endpoint: "get_total_matches", title: t("TotalMatchesAchTitle", { defaultValue: "Total Matches" }), filters: [filterTypeOptions.startDate, filterTypeOptions.endDate] },
+    { endpoint: "get_players_wins", title: t("PlayerWinsAchTitle", { defaultValue: "Player Wins" }), filters: [filterTypeOptions.player, filterTypeOptions.startDate, filterTypeOptions.endDate] },
+    { endpoint: "get_players_winrate", title: t("PlayerWinRateAchTitle", { defaultValue: "Player Win Rate" }), filters: [filterTypeOptions.player, filterTypeOptions.startDate, filterTypeOptions.endDate] },
+    { endpoint: "get_game_coop_winrate", title: t("GameCoopWinRateAchTitle", { defaultValue: "Game Coop Win Rate" }), filters: [filterTypeOptions.game] },
+    { endpoint: "get_game_nb_matches", title: t("GameNumMatchAchTitle", { defaultValue: "Game Number of Matches" }) },
+    { endpoint: "get_games_avg_duration", title: t("GameAvgDurationAchTitle", { defaultValue: "Game Average Duration" }) },
+    { endpoint: "get_game_best_value", title: t("GameBestValueAchTitle", { defaultValue: "Game Best Value" }) },
+    { endpoint: "get_games_highest_score", title: t("GameHighestScoreAchTitle", { defaultValue: "Game Highest Score" }), filters: [filterTypeOptions.game] },
+    { endpoint: "get_games_avg_score", title: t("GameAvgScoreAchTitle", { defaultValue: "Game Average Score" }), filters: [filterTypeOptions.game] },
     // Add more endpoints as needed
   ];
 

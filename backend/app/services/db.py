@@ -208,14 +208,46 @@ def query_results_to_dict(results):
     return [query_result_to_dict(result) for result in results]
 
 def get_match_history(match_query):
-    results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
+    results = Match.query.filter_by(**match_query).join(Player_to_Match, Match.id==Player_to_Match.match_id
         ).join(Player, Player_to_Match.player_id==Player.id
         ).join(Match_to_Game, Match.id==Match_to_Game.match_id
         ).join(Game, Match_to_Game.game_id==Game.id
-        ).filter(**match_query
+        # ).filter_by(**match_query
+        ).order_by(Match.date.desc()
         ).group_by(Match.id
         ).all()
     return results
+
+# "(psycopg2.ProgrammingError) can't adapt type 
+# 'dict'\n
+# [SQL: 
+#   SELECT  matches.id AS matches_id, 
+#           matches.date AS matches_date, 
+#           matches.duration AS matches_duration, 
+#           matches.image AS matches_image, 
+#           matches.nb_players AS matches_nb_players, 
+#           matches.nb_teams AS matches_nb_teams, 
+#           matches.winner AS matches_winner, 
+#           matches.winning_score AS matches_winning_score, 
+#           matches.is_cooperative AS matches_is_cooperative, 
+#           matches.is_over AS matches_is_over, 
+#           matches.note AS matches_note \n
+#   FROM matches 
+#   JOIN    players_to_matches 
+#       ON  matches.id = players_to_matches.match_id 
+#   JOIN    players 
+#       ON  players_to_matches.player_id = players.id 
+#   JOIN    matches_to_games 
+#       ON  matches.id = matches_to_games.match_id 
+#   JOIN    games 
+#       ON  matches_to_games.game_id = games.id \n
+#   WHERE   matches.date = %(date_1)s 
+#   GROUP BY matches.id 
+#   ORDER BY matches.date DESC ]\n  
+# [parameters: 
+#   {'date_1': {'$gte': datetime.datetime(1970, 1, 1, 0, 0), 
+#               '$lte': datetime.datetime(2026, 8, 24, 0, 0)}}]\n
+# (Background on this error at: https://sqlalche.me/e/20/f405)"
 
 def get_match_history_by_games(games, match_query):
     results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
@@ -234,8 +266,7 @@ def get_match_history_by_players(players, match_query):
         ).join(Player, Player_to_Match.player_id==Player.id
         ).join(Match_to_Game, Match.id==Match_to_Game.match_id
         ).join(Game, Match_to_Game.game_id==Game.id
-        ).filter(Player.id.in_(players)
-        ).filter(**match_query
+        ).filter_by(Player.id.in_(players), **match_query
         ).order_by(Match.date.desc()
         ).group_by(Match.id
         ).all()
@@ -246,17 +277,15 @@ def get_match_history_by_players_and_games(players, games, match_query):
         ).join(Player, Player_to_Match.player_id==Player.id
         ).join(Match_to_Game, Match.id==Match_to_Game.match_id
         ).join(Game, Match_to_Game.game_id==Game.id
-        ).filter(Player.id.in_(players)
-        ).filter(Game.id.in_(games)
-        ).filter(**match_query
+        ).filter_by(Player.id.in_(players), Game.id.in_(games), **match_query
         ).order_by(Match.date.desc()
         ).group_by(Match.id
         ).all()
     return results
 
-# TODO modify to follow previous example
 def get_wins_per_player(players, match_query):
     results = Player.query.join(Player_to_Match, Player.id==Player_to_Match.player_id
+        ).join(Match, Player_to_Match.match_id==Match.id
         ).filter(Player.id.in_(players)
         ).filter(Player_to_Match.win == True
         ).filter(**match_query
