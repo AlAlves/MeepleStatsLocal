@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app import db
 from app.models import Player, Game, Match, Player_to_Match, Match_to_Game, Game_to_Player
 from dotenv import load_dotenv
@@ -207,15 +209,28 @@ def query_results_to_dict(results):
     """Convert a list of SQLAlchemy query results to a list of dictionaries."""
     return [query_result_to_dict(result) for result in results]
 
-def get_match_history(match_query):
-    results = Match.query.filter_by(**match_query).join(Player_to_Match, Match.id==Player_to_Match.match_id
-        ).join(Player, Player_to_Match.player_id==Player.id
-        ).join(Match_to_Game, Match.id==Match_to_Game.match_id
-        ).join(Game, Match_to_Game.game_id==Game.id
-        # ).filter_by(**match_query
-        ).order_by(Match.date.desc()
-        ).group_by(Match.id
-        ).all()
+def get_match_history(start_date=datetime(1970, 1, 1), end_date=datetime.now(), match_query=None):
+    if match_query is not None:
+        results = db.session.query(Match
+            ).join(Player_to_Match, Match.id==Player_to_Match.match_id
+            ).join(Player, Player_to_Match.player_id==Player.id
+            ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+            ).join(Game, Match_to_Game.game_id==Game.id
+            ).filter(Match.date >= start_date, Match.date <= end_date
+            ).filter_by(**match_query
+            ).order_by(Match.date.desc()
+            ).group_by(Match.id
+            ).all()
+    else:
+        results = db.session.query(Match
+            ).join(Player_to_Match, Match.id==Player_to_Match.match_id
+            ).join(Player, Player_to_Match.player_id==Player.id
+            ).join(Match_to_Game, Match.id==Match_to_Game.match_id
+            ).join(Game, Match_to_Game.game_id==Game.id
+            ).filter(Match.date >= start_date, Match.date <= end_date
+            ).order_by(Match.date.desc()
+            ).group_by(Match.id
+            ).all()
     return results
 
 # "(psycopg2.ProgrammingError) can't adapt type 

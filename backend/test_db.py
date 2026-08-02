@@ -156,6 +156,7 @@ with app.app_context():
     results = Player.query.join(Game_to_Player, Player.id==Game_to_Player.player_id
         ).join(Game, Game_to_Player.game_id==Game.id
         ).filter(Player.username=="Alxr"
+        ).filter(None
         ).group_by(Player.id
         ).all()
 

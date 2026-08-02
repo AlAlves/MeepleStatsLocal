@@ -77,7 +77,7 @@ def get_total_hours():
             if games:
                 results = get_match_history_by_games(games, date_query)
             else:
-                results = get_match_history(date_query)
+                results = get_match_history(start_date, end_date)
         
         if results:
             total_duration = sum(match.duration for match in results if match.duration is not None)
@@ -160,8 +160,8 @@ def get_total_matches():
             if games:
                 results = get_match_history_by_games(games, date_query)
             else:
-                results = get_match_history(date_query)
-        
+                results = get_match_history(start_date, end_date)
+
         # Find matches in the date range
         total_matches = len(results) if results else 0
 
