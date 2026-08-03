@@ -15,10 +15,22 @@ statistic_bp = Blueprint('statistic', __name__)
 @statistic_bp.route('/get_total_hours', methods=['GET'])
 @jwt_required()
 def get_total_hours():
-    """Compute total nb of hours spend in game TODO
+    """Compute total nb of hours spend in game
 
-    Returns:
-        _type_: _description_
+    Request: POST
+            start_date (str): date in YYYY-MM-DD format.
+            end_date (str): date in YYYY-MM-DD format.
+            players (list): list of player ids (optionnal)
+            games (list): list of game ids (optionnal)
+
+        Returns:
+            JSON:
+                "type" (number)
+                "value" (int),
+                "unit" (hours),
+                "description" (str)
+                or 'error' (str)
+
     """
 
     # Get date filters from query string
@@ -99,8 +111,20 @@ def get_total_hours():
 def get_total_matches():
     """Get total nb of matches TODO
 
+    Request: POST
+        start_date (str): date in YYYY-MM-DD format.
+        end_date (str): date in YYYY-MM-DD format.
+        players (list): list of player ids (optionnal)
+        games (list): list of game ids (optionnal)
+
     Returns:
-        _type_: _description_
+        JSON:
+            "type" (number)
+            "value" (int),
+            "unit" (hours),
+            "description" (str)
+            or 'error' (str)
+    
     """
 
     # Get date filters from query string

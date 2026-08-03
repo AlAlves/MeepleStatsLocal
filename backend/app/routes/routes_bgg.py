@@ -28,6 +28,7 @@ def bgg_get(url, params = None):
         Response: The API response.
 
     """
+
     headers = {}
     if BGG_API_KEY:
         headers["Authorization"] = f"Bearer {BGG_API_KEY}"
@@ -49,6 +50,7 @@ def bgg_search():
         Response: The API response.
 
     """
+
     # Get the original query string from the parameters
     query = request.args.get('query', '')
     resp = bgg_get('https://boardgamegeek.com/xmlapi2/search', params={'query': query})
@@ -66,6 +68,7 @@ def bgg_thing():
         Response: The API response.
 
     """
+
     # Get the object ID
     object_id = request.args.get('id', '')
     resp = bgg_get(f'https://boardgamegeek.com/xmlapi2/thing', params={'id': object_id})

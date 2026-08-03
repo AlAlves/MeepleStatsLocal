@@ -233,37 +233,6 @@ def get_match_history(start_date=datetime(1970, 1, 1), end_date=datetime.now(), 
             ).all()
     return results
 
-# "(psycopg2.ProgrammingError) can't adapt type 
-# 'dict'\n
-# [SQL: 
-#   SELECT  matches.id AS matches_id, 
-#           matches.date AS matches_date, 
-#           matches.duration AS matches_duration, 
-#           matches.image AS matches_image, 
-#           matches.nb_players AS matches_nb_players, 
-#           matches.nb_teams AS matches_nb_teams, 
-#           matches.winner AS matches_winner, 
-#           matches.winning_score AS matches_winning_score, 
-#           matches.is_cooperative AS matches_is_cooperative, 
-#           matches.is_over AS matches_is_over, 
-#           matches.note AS matches_note \n
-#   FROM matches 
-#   JOIN    players_to_matches 
-#       ON  matches.id = players_to_matches.match_id 
-#   JOIN    players 
-#       ON  players_to_matches.player_id = players.id 
-#   JOIN    matches_to_games 
-#       ON  matches.id = matches_to_games.match_id 
-#   JOIN    games 
-#       ON  matches_to_games.game_id = games.id \n
-#   WHERE   matches.date = %(date_1)s 
-#   GROUP BY matches.id 
-#   ORDER BY matches.date DESC ]\n  
-# [parameters: 
-#   {'date_1': {'$gte': datetime.datetime(1970, 1, 1, 0, 0), 
-#               '$lte': datetime.datetime(2026, 8, 24, 0, 0)}}]\n
-# (Background on this error at: https://sqlalche.me/e/20/f405)"
-
 def get_match_history_by_games(games, match_query):
     results = Match.query.join(Player_to_Match, Match.id==Player_to_Match.match_id
         ).join(Player, Player_to_Match.player_id==Player.id
